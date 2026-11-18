@@ -1,0 +1,107 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DATABASE_URL_UNPOOLED")
+}
+
+model RosterSync {
+  id           String   @id @default(cuid())
+  source       String
+  createdAt    DateTime @default(now())
+  rowsRead     Int
+  updatedCount Int
+  createdCount Int
+  skippedCount Int
+  note         String   @default("")
+}
+
+model Store {
+  id        String    @id @default(cuid())
+  number    String    @unique
+  name      String    @default("")
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  staff     Staff[]
+  trainees  Trainee[]
+}
+
+model Staff {
+  id           String          @id @default(cuid())
+  storeId      String
+  store        Store           @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  name         String
+  position     String          @default("")
+  isGm         Boolean         @default(false)
+  isTrainer    Boolean         @default(false)
+  qualified    Boolean         @default(false)
+  rosterSource String          @default("manual")
+  active       Boolean         @default(true)
+  isSample     Boolean         @default(false)
+  createdAt    DateTime        @default(now())
+  assignments  TraineeModule[]
+
+  @@index([storeId])
+}
+
+model Module {
+  id           String          @id @default(cuid())
+  language     String
+  section      String
+  sectionLabel String
+  sortOrder    Int
+  name         String
+  timeLabel    String          @default("")
+  timeMinutes  Int?
+  videoCount   Int?
+  credit       String?
+  link         String          @default("")
+  videoTitles  String          @default("")
+  needsReview  Boolean         @default(false)
+  kind         String
+  note         String          @default("")
+  progress     TraineeModule[]
+
+  @@unique([language, sortOrder])
+  @@index([language])
+}
+
+model Trainee {
+  id        String          @id @default(cuid())
+  storeId   String
+  store     Store           @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  name      String
+  startDate String
+  language  String
+  position  String          @default("")
+  status    String          @default("ACTIVE")
+  isSample  Boolean         @default(false)
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+  modules   TraineeModule[]
+
+  @@index([storeId])
+  @@index([status])
+}
+
+model TraineeModule {
+  id            String  @id @default(cuid())
+  traineeId     String
+  trainee       Trainee @relation(fields: [traineeId], references: [id], onDelete: Cascade)
+  moduleId      String
+  module        Module  @relation(fields: [moduleId], references: [id])
+  scheduledDate String?
+  trainerId     String?
+  trainer       Staff?  @relation(fields: [trainerId], references: [id], onDelete: SetNull)
+  trainerLabel  String  @default("")
+  completed     Boolean @default(false)
+  completedDate String?
+  notes         String  @default("")
+
+  @@unique([traineeId, moduleId])
+  @@index([traineeId])
+  @@index([scheduledDate])
+}

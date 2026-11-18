@@ -1,0 +1,41 @@
+{
+  "name": "crew-training-tracker",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "prisma migrate deploy && tsx prisma/seed.ts && next build",
+    "start": "next start",
+    "lint": "eslint",
+    "db:setup": "prisma migrate deploy && tsx prisma/seed.ts",
+    "db:seed": "tsx prisma/seed.ts",
+    "db:reset": "SEED_SAMPLE_DATA=true prisma migrate reset --force",
+    "check": "tsx scripts/self-check.ts",
+    "postinstall": "prisma generate"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "^1.0.2",
+    "@prisma/adapter-neon": "^6.19.2",
+    "@prisma/client": "6.19.2",
+    "next": "16.4.6",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "ws": "^8.23.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/turbopack": "4.3.3",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@types/ws": "^8.18.2",
+    "eslint": "^9",
+    "eslint-config-next": "16.4.6",
+    "prisma": "6.19.2",
+    "tailwindcss": "4.3.3",
+    "tsx": "^4.20.6",
+    "typescript": "^5"
+  }
+}
