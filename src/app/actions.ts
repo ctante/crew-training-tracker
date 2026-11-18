@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import {
   commitImport,
@@ -21,6 +22,7 @@ import {
 import { prisma } from "@/lib/db";
 import { googleSheetsDevelopmentReportSource } from "@/lib/roster/google-sheets";
 import { csvDevelopmentReportSource } from "@/lib/roster/source";
+import { SESSION_COOKIE, createSessionToken, safeEqual, safeNextPath, sessionCookieOptions } from "@/lib/session";
 import { seedDatabase } from "@/lib/seed-run";
 
 function message(error: unknown) {
@@ -214,6 +216,22 @@ export async function syncGoogleRosterAction() {
   } catch (error) {
     return { error: message(error) };
   }
+}
+
+export async function signInAction(input: { password: string; nextPath: string }) {
+  const expected = process.env.APP_PASSWORD;
+  if (!expected) return { error: "Access is not configured yet. Add APP_PASSWORD on the host." };
+  if (!process.env.SESSION_SECRET) return { error: "Access is not configured yet. Add SESSION_SECRET on the host." };
+  if (!safeEqual(input.password, expected)) return { error: "That password does not match." };
+  const jar = await cookies();
+  jar.set(SESSION_COOKIE, await createSessionToken(), sessionCookieOptions());
+  redirect(safeNextPath(input.nextPath));
+}
+
+export async function signOutAction() {
+  const jar = await cookies();
+  jar.set(SESSION_COOKIE, "", { ...sessionCookieOptions(), maxAge: 0 });
+  redirect("/login");
 }
 
 export async function resetSampleAction(formData: FormData) {

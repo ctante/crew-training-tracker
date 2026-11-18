@@ -1,17 +1,27 @@
 import { prisma } from "../src/lib/db";
-import { seedDatabase } from "../src/lib/seed-run";
+import { seedCatalog, seedDatabase, seedSampleContent } from "../src/lib/seed-run";
 
-seedDatabase(prisma)
+async function main() {
+  if (process.env.SEED_RESET === "true") {
+    await seedDatabase(prisma);
+    return;
+  }
+  await seedCatalog(prisma);
+  if (process.env.SEED_SAMPLE_DATA === "true") {
+    const trainees = await prisma.trainee.count();
+    if (trainees === 0) {
+      await seedSampleContent(prisma);
+      console.log("Sample trainees and trainers added.");
+    } else {
+      console.log("Sample seed skipped because trainees already exist.");
+    }
+  } else {
+    console.log("Sample trainees were not seeded. Set SEED_SAMPLE_DATA=true to add them to an empty database.");
+  }
+}
+
+main()
   .then(async () => {
-    const [stores, modules, trainees, flagged] = await Promise.all([
-      prisma.store.count(),
-      prisma.module.count(),
-      prisma.trainee.count(),
-      prisma.module.count({ where: { needsReview: true } }),
-    ]);
-    console.log(
-      `Seeded ${stores} stores, ${modules} modules, ${trainees} sample trainees, ${flagged} links needing review.`,
-    );
     await prisma.$disconnect();
   })
   .catch(async (error) => {

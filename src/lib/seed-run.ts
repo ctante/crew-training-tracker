@@ -1,4 +1,5 @@
 import type { PrismaClient } from "@prisma/client";
+import { TRAINER_POSITION_ORDER } from "./constants";
 import { loadModuleSeeds } from "./module-csv";
 import {
   SAMPLE_PROFILES,
@@ -18,8 +19,26 @@ function spreadDates(start: string, end: string, count: number): string[] {
   });
 }
 
-export async function seedDatabase(prisma: PrismaClient) {
+export async function seedCatalog(prisma: PrismaClient) {
   const seeds = loadModuleSeeds();
+  for (const store of SAMPLE_STORES) {
+    const existing = await prisma.store.findUnique({ where: { number: store.number } });
+    if (!existing) {
+      await prisma.store.create({ data: { number: store.number, name: store.name } });
+    }
+  }
+  for (const seed of seeds) {
+    const existing = await prisma.module.findUnique({
+      where: { language_sortOrder: { language: seed.language, sortOrder: seed.sortOrder } },
+    });
+    if (!existing) await prisma.module.create({ data: seed });
+  }
+  console.log(
+    `Catalog ready: ${SAMPLE_STORES.length} restaurants, ${seeds.length} modules. Position order: ${TRAINER_POSITION_ORDER.join(", ")}.`,
+  );
+}
+
+export async function seedSampleContent(prisma: PrismaClient) {
   const counts = new Map<string, number>();
   for (const profile of SAMPLE_PROFILES) {
     counts.set(profile.store, (counts.get(profile.store) ?? 0) + 1);
@@ -34,19 +53,10 @@ export async function seedDatabase(prisma: PrismaClient) {
     throw new Error("Not enough sample staff names");
   }
 
-  await prisma.traineeModule.deleteMany();
-  await prisma.trainee.deleteMany();
-  await prisma.staff.deleteMany();
-  await prisma.rosterSync.deleteMany();
-  await prisma.module.deleteMany();
-  await prisma.store.deleteMany();
-
-  const stores = new Map<string, { id: string }>();
+  const existingStores = await prisma.store.findMany();
+  const stores = new Map(existingStores.map((store) => [store.number, { id: store.id }]));
   for (const store of SAMPLE_STORES) {
-    const created = await prisma.store.create({
-      data: { number: store.number, name: store.name },
-    });
-    stores.set(store.number, created);
+    if (!stores.has(store.number)) throw new Error(`Restaurant ${store.number} is missing from the catalog.`);
   }
 
   const staffByStore = new Map<string, { id: string; name: string }[]>();
@@ -74,8 +84,8 @@ export async function seedDatabase(prisma: PrismaClient) {
     staffByStore.set(store.number, people);
   }
 
-  await prisma.module.createMany({ data: seeds });
   const modules = await prisma.module.findMany();
+  if (modules.length < 72) throw new Error("The module catalog is incomplete.");
   const moduleId = new Map(modules.map((module) => [`${module.language}:${module.sortOrder}`, module.id]));
 
   for (const profile of SAMPLE_PROFILES) {
@@ -142,4 +152,15 @@ export async function seedDatabase(prisma: PrismaClient) {
     }
     await prisma.traineeModule.createMany({ data: rows });
   }
+}
+
+export async function seedDatabase(prisma: PrismaClient) {
+  await prisma.traineeModule.deleteMany();
+  await prisma.trainee.deleteMany();
+  await prisma.staff.deleteMany();
+  await prisma.rosterSync.deleteMany();
+  await prisma.module.deleteMany();
+  await prisma.store.deleteMany();
+  await seedCatalog(prisma);
+  await seedSampleContent(prisma);
 }

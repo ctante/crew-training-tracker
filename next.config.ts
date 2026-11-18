@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Schedules and checkboxes come from a live SQLite file, so pages render
+  // Schedules and checkboxes come from the live database, so pages render
   // per request instead of a cached shell.
   cacheComponents: false,
   serverExternalPackages: ["@prisma/client", "prisma"],

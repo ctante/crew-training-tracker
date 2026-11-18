@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { signOutAction } from "@/app/actions";
 import { SideNav, TabNav } from "./nav";
 
 export function Shell({
@@ -16,9 +17,11 @@ export function Shell({
           <p className="mt-1 text-sm text-white/70">Tracker · 10 restaurants</p>
         </Link>
         <SideNav />
-        <p className="px-5 pb-5 text-xs leading-5 text-white/55">
-          Shared desk for general managers and crew trainers. No sign-in on this prototype.
-        </p>
+        <form action={signOutAction} className="px-5 pb-5">
+          <button type="submit" className="text-xs font-semibold text-white/70 underline-offset-2 hover:underline">
+            Sign out
+          </button>
+        </form>
       </aside>
       <div className="min-w-0">
         <header className="sticky top-0 z-10 flex items-center justify-between border-b border-line/80 bg-paper/95 px-4 py-3 backdrop-blur lg:hidden">
@@ -26,9 +29,16 @@ export function Shell({
             <p className="font-display text-xl leading-none text-bark">Crew Training</p>
             <p className="text-xs text-ink/60">Tracker</p>
           </Link>
-          <Link href="/trainees/new" className="rounded-full bg-brick px-3 py-2 text-sm font-semibold text-white">
-            Add trainee
-          </Link>
+          <div className="flex items-center gap-3">
+            <form action={signOutAction}>
+              <button type="submit" className="text-sm font-semibold text-ink/70">
+                Sign out
+              </button>
+            </form>
+            <Link href="/trainees/new" className="rounded-full bg-brick px-3 py-2 text-sm font-semibold text-white">
+              Add trainee
+            </Link>
+          </div>
         </header>
         {sampleCount > 0 ? (
           <div className="border-b border-amber-300 bg-sun/70 px-4 py-2 text-sm text-sun-deep lg:px-8">

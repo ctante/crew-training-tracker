@@ -2,9 +2,11 @@
 
 A phone-friendly desk for general managers and crew trainers. It replaces the per-trainee Individual Training Schedule (ITS) tabs: one 36-module path, a date and a trainer on each row, and a store agenda of sessions that are scheduled and still open.
 
-Crew members do not sign in. This prototype has no authentication.
+Crew members do not have their own logins. General managers and crew trainers share one team password.
 
-## Run
+## Run locally
+
+Install Postgres, or use a Neon dev branch. Copy `.env.example` to `.env` and set both database URLs to that database. For a Neon branch they are the pooled and direct strings Neon shows you. For Postgres on this machine they can be the same URL.
 
 ```bash
 npm install
@@ -12,17 +14,13 @@ npm run db:setup
 npm run dev
 ```
 
-Open http://localhost:3000.
+Open http://localhost:3000 and sign in with `APP_PASSWORD`.
 
-`db:setup` creates `prisma/dev.db` and loads the sample set. Run it again to wipe the database and restore that set. The same action is on the Admin page.
+`db:setup` applies migrations and loads the 10 restaurants and 36-module catalog. With `SEED_SAMPLE_DATA=true` it also adds fictional trainees, but only when the database has none yet. `npm run db:reset` drops the database and loads the catalog plus sample people.
 
-```bash
-npm run check
-npm run build
-npm run start
-```
+Production deployment is in `DEPLOY.md`. The shared password and session secret are set on Vercel, and sample people are left off the live site.
 
-The app reads SQLite through `src/lib/data.ts`. Point `DATABASE_URL` at Postgres and keep that module as the boundary when you add Supabase and sign-in later.
+The database is only touched through `src/lib/data.ts`. Neon hosts use the Neon serverless driver. Any other Postgres URL uses Prisma's standard client.
 
 ## What is on each page
 
