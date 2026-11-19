@@ -49,6 +49,7 @@ export default async function ModulesAdminPage({
         <label className="text-sm font-semibold">
           Section
           <select className={`${fieldClass} mt-1`} name="section" defaultValue="FOUNDATION">
+            <option value="ORIENTATION">Orientation</option>
             <option value="FOUNDATION">Foundation</option>
             <option value="SERVICE">Service</option>
             <option value="PRODUCTION">Production</option>

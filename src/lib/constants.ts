@@ -1,13 +1,15 @@
-export const SECTIONS = ["FOUNDATION", "SERVICE", "PRODUCTION"] as const;
+export const SECTIONS = ["ORIENTATION", "FOUNDATION", "SERVICE", "PRODUCTION"] as const;
 export type SectionId = (typeof SECTIONS)[number];
 
 export const SECTION_TITLES: Record<"en" | "es", Record<SectionId, string>> = {
   en: {
+    ORIENTATION: "Orientation",
     FOUNDATION: "Foundation",
     SERVICE: "Service",
     PRODUCTION: "Production",
   },
   es: {
+    ORIENTATION: "Orientación",
     FOUNDATION: "Fundación",
     SERVICE: "Servicio",
     PRODUCTION: "Producción",
@@ -91,6 +93,7 @@ export function groupByTrainerPosition<T extends { position: string; name: strin
 
 export function canonicalSection(label: string): SectionId {
   const value = label.trim().toLowerCase();
+  if (value.startsWith("orient")) return "ORIENTATION";
   if (value.startsWith("found") || value.startsWith("fund")) return "FOUNDATION";
   if (value.startsWith("serv")) return "SERVICE";
   return "PRODUCTION";

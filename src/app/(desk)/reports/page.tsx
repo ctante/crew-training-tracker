@@ -15,6 +15,7 @@ const TABS: { id: ReportKind; label: string }[] = [
   { id: "trainers", label: "Trainers" },
   { id: "time", label: "Time to complete" },
   { id: "path", label: "Needs a path" },
+  { id: "modules", label: "By module" },
 ];
 
 export default async function ReportsPage({
@@ -104,6 +105,7 @@ function description(report: ReportKind) {
   if (report === "overdue") return "Sessions dated before today that are not done, by restaurant and by trainer.";
   if (report === "trainers") return "Sessions marked done in the selected dates, counted for each trainer.";
   if (report === "time") return "Days from the start date to Foundation done, and to the first path done.";
+  if (report === "modules") return "Each module, only for trainees whose path includes it. Open a module to see who is done and who is not.";
   return "Trainees who still need a Service or Production path.";
 }
 
@@ -170,6 +172,7 @@ function renderReport(report: ReportKind, data: Awaited<ReturnType<typeof getRep
       />
     );
   }
+  if (report === "modules") return <ModuleReport rows={data.moduleRows} />;
   if (report === "time") {
     return (
       <Table
@@ -199,6 +202,60 @@ function renderReport(report: ReportKind, data: Awaited<ReturnType<typeof getRep
         [data.completionTotal.storeNumber, `${data.needingPath.length} trainees`, "", ""],
       ]}
     />
+  );
+}
+
+function ModuleReport({ rows }: { rows: Awaited<ReturnType<typeof getReports>>["moduleRows"] }) {
+  const sections = ["ORIENTATION", "FOUNDATION", "SERVICE", "PRODUCTION"] as const;
+  return (
+    <div className="space-y-6">
+      {sections.map((section) => {
+        const items = rows.filter((row) => row.section === section);
+        const title = items[0]?.sectionTitle ?? section;
+        return (
+          <section key={section}>
+            <h2 className="font-display text-2xl">{title}</h2>
+            {items.length === 0 ? (
+              <p className="mt-2 text-sm text-ink/60">No modules in this section yet.</p>
+            ) : (
+              <div className="mt-2 space-y-2">
+                {items.map((row) => (
+                  <details key={`${row.section}-${row.sortOrder}`} className="rounded-3xl border border-line bg-card p-4">
+                    <summary className="cursor-pointer">
+                      <span className="font-semibold">{row.name}</span>
+                      <span className="mt-1 block text-sm text-ink/70">
+                        {row.percent}% · {row.completed} completed · {row.notCompleted} not completed · {row.eligible} on this path · {row.scheduled} scheduled · {row.overdue} overdue
+                      </span>
+                    </summary>
+                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                      <NameList title="Completed" names={row.completedNames} />
+                      <NameList title="Not completed" names={row.openNames} />
+                    </div>
+                  </details>
+                ))}
+              </div>
+            )}
+          </section>
+        );
+      })}
+    </div>
+  );
+}
+
+function NameList({ title, names }: { title: string; names: string[] }) {
+  return (
+    <div>
+      <h3 className="text-sm font-semibold">{title}</h3>
+      {names.length === 0 ? (
+        <p className="mt-1 text-sm text-ink/60">None</p>
+      ) : (
+        <ul className="mt-1 space-y-1 text-sm">
+          {names.map((name) => (
+            <li key={name}>{name}</li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 

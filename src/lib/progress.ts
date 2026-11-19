@@ -69,7 +69,7 @@ export function otherPath(path: TrainingPath): TrainingPath {
 }
 
 export function sectionsForPaths(paths: TrainingPath[]): SectionId[] {
-  const sections: SectionId[] = ["FOUNDATION"];
+  const sections: SectionId[] = ["ORIENTATION", "FOUNDATION"];
   if (paths.includes("SERVICE")) sections.push("SERVICE");
   if (paths.includes("PRODUCTION")) sections.push("PRODUCTION");
   return sections;
@@ -77,7 +77,7 @@ export function sectionsForPaths(paths: TrainingPath[]): SectionId[] {
 
 export function onTrainingPaths(section: SectionId, paths: TrainingPath[], archived = false): boolean {
   if (archived) return false;
-  if (section === "FOUNDATION") return true;
+  if (section === "ORIENTATION" || section === "FOUNDATION") return true;
   return paths.includes(section as TrainingPath);
 }
 
