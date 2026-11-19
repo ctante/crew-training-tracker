@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import { compareTrainers, trainerPositionRank } from "../src/lib/constants";
-import { addCatalogModule, commitImport, deleteTrainee, exportTraineeCsv, getDashboard, getScheduledSessions, getTrainee, matchLogin, moveCatalogModule, previewImport, removeCatalogModule, setStorePassword, syncDevelopmentReport } from "../src/lib/data";
+import { addCatalogModule, addSecondPath, commitImport, createTrainee, deleteTrainee, exportTraineeCsv, getDashboard, getScheduledSessions, getTrainee, matchLogin, moveCatalogModule, previewImport, removeCatalogModule, setStorePassword, syncDevelopmentReport } from "../src/lib/data";
+import { getReports } from "../src/lib/reports";
 import { prisma } from "../src/lib/db";
-import { formatLongDate, parseLooseDate, sessionWindow } from "../src/lib/format";
+import { daysBetween, formatLongDate, parseLooseDate, selectReportStores, sessionWindow } from "../src/lib/format";
 import { loadModuleSeeds } from "../src/lib/module-csv";
-import { inferPathChoice, summarize } from "../src/lib/progress";
+import { inferPathChoice, summarize, trainingPaths } from "../src/lib/progress";
 import { parseDevelopmentReport } from "../src/lib/roster/parse";
 import { csvDevelopmentReportSource } from "../src/lib/roster/source";
 
@@ -48,6 +49,23 @@ async function main() {
   assert.equal(inferPathChoice(1, 4), "PRODUCTION");
   assert.equal(inferPathChoice(2, 2), null);
   assert.equal(inferPathChoice(0, 0), null);
+  assert.deepEqual(trainingPaths("SERVICE", "PRODUCTION"), ["SERVICE", "PRODUCTION"]);
+  assert.deepEqual(trainingPaths("SERVICE", "SERVICE"), ["SERVICE"]);
+  assert.deepEqual(selectReportStores({ role: "store", ownStore: "05207", requested: ["07276"], entireOrg: true, known: ["05207", "07276"] }), ["05207"]);
+  assert.deepEqual(selectReportStores({ role: "admin", requested: [], entireOrg: false, known: ["05207", "07276"] }), ["05207", "07276"]);
+  assert.deepEqual(selectReportStores({ role: "admin", requested: ["07276"], entireOrg: false, known: ["05207", "07276"] }), ["07276"]);
+  assert.equal(daysBetween("2026-11-01", "2026-11-15"), 14);
+  const both = summarize(
+    [
+      { sortOrder: 1, section: "FOUNDATION", name: "Foundation", timeMinutes: 10, completed: true, completedDate: "2026-11-01", scheduledDate: null, trainerLabel: "" },
+      { sortOrder: 11, section: "SERVICE", name: "Service", timeMinutes: 10, completed: true, completedDate: "2026-11-02", scheduledDate: null, trainerLabel: "" },
+      { sortOrder: 27, section: "PRODUCTION", name: "Production", timeMinutes: 10, completed: false, completedDate: null, scheduledDate: "2026-11-01", trainerLabel: "" },
+    ],
+    { startDate: "2026-11-01", status: "ACTIVE", today: "2026-11-19", paths: ["SERVICE", "PRODUCTION"] },
+  );
+  assert.equal(both.total, 3);
+  assert.equal(both.completed, 2);
+  assert.equal(both.overdueCount, 1);
   const wednesday = sessionWindow("2026-11-19", "this-week");
   assert.equal(wednesday.start, "2026-11-16");
   assert.equal(wednesday.end, "2026-11-22");
@@ -274,12 +292,52 @@ Zed Unqualified,05207,Shift Manager,No
   }
 
   const rosterCsv = "Name,Store,Position,Qualified\nIdem Trainer,05207,Crew Trainer,Yes\n";
+  const staffBefore = await prisma.staff.findMany({
+    where: { store: { number: "05207" } },
+    select: { id: true, active: true, qualified: true, isTrainer: true },
+  });
   try {
     await syncDevelopmentReport(csvDevelopmentReportSource(rosterCsv));
     await syncDevelopmentReport(csvDevelopmentReportSource(rosterCsv));
     assert.equal(await prisma.staff.count({ where: { name: "Idem Trainer" } }), 1);
+    const gone = await syncDevelopmentReport(csvDevelopmentReportSource("Name,Store,Position,Qualified\nOther Trainer,05207,Crew Trainer,Yes\n"));
+    assert.ok(gone.deactivatedCount >= 1);
+    const retired = await prisma.staff.findFirstOrThrow({ where: { name: "Idem Trainer" } });
+    assert.equal(retired.active, false);
+    assert.equal(retired.qualified, false);
+    const report = await getReports({ storeNumbers: ["05207"], entireOrg: false, range: "all" });
+    assert.deepEqual(report.selected, ["05207"]);
+    assert.equal(report.completion.length, 1);
+    assert.equal(report.completionTotal.trainees, report.completion[0].trainees);
+    const storeOnly = await prisma.store.findUniqueOrThrow({ where: { number: "05207" } });
+    const createdId = await createTrainee({
+      name: "Second Path Check",
+      storeId: storeOnly.id,
+      startDate: "2026-11-01",
+      language: "en",
+      position: "",
+      path: "SERVICE",
+    });
+    await assert.rejects(() => addSecondPath(createdId));
+    await prisma.traineeModule.updateMany({
+      where: { traineeId: createdId, module: { section: { in: ["FOUNDATION", "SERVICE"] } } },
+      data: { completed: true, completedDate: "2026-11-02" },
+    });
+    await addSecondPath(createdId);
+    const after = await getTrainee(createdId);
+    assert.equal(after?.secondPath, "PRODUCTION");
+    assert.equal(after?.scheduleComplete, false);
+    assert.ok(after?.firstPathCompletedOn);
+    assert.equal(after?.modules.some((module) => module.section === "PRODUCTION"), true);
   } finally {
-    await prisma.staff.deleteMany({ where: { name: "Idem Trainer" } });
+    await prisma.trainee.deleteMany({ where: { name: "Second Path Check" } });
+    await prisma.staff.deleteMany({ where: { name: { in: ["Idem Trainer", "Other Trainer"] } } });
+    for (const person of staffBefore) {
+      await prisma.staff.update({
+        where: { id: person.id },
+        data: { active: person.active, qualified: person.qualified, isTrainer: person.isTrainer },
+      });
+    }
     await prisma.rosterSync.deleteMany();
   }
 

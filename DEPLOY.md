@@ -72,7 +72,41 @@ The deploy sets a path for trainees who already have progress. It counts dated o
 
 Admin, then Modules (`/admin/modules`), adds a module in English and Spanish, moves modules up or down inside a section, and removes a module. If anyone already has a date, a trainer, or a completion on it, the module is archived and the history stays. If nobody has history, it is deleted. Archived modules disappear from schedules. New modules show up for every trainee in that section.
 
-The board has a Scheduled sessions view. It opens on today, using Eastern Time, and weeks run Monday through Sunday. A restaurant login sees only that restaurant. The admin login can filter by restaurant.
+The board has a Scheduled sessions view. It opens on today, using Eastern Time, and weeks run Monday through Sunday. Sessions are grouped by trainee. Tabs split Scheduled, Overdue, Done, and All. Overdue is every session dated before today that is not done. A restaurant login sees only that restaurant. The admin login can filter by restaurant.
+
+A trainee who finishes Foundation and their first path can add the other path from the Individual Training Schedule. That date is kept. Progress then counts Foundation plus both paths. Reports are in the main menu. The admin store filter can select any combination of restaurants or the entire organization, and each report includes a total for that selection. A restaurant login only sees its own restaurant.
+
+## Weekly roster sync
+
+`POST /api/sync/roster` accepts the same CSV as Admin → Trainer roster. The header row is `Name, Store, Position, Qualified`. Qualified can be Yes or No. A file without Qualified treats every row as qualified.
+
+Send the file as the raw request body. Authorize it with:
+
+```http
+Authorization: Bearer <SYNC_TOKEN>
+```
+
+Set `SYNC_TOKEN` yourself in Vercel for Production (and Preview, if a scheduler will call those URLs). Use a long random string. Do not reuse `APP_PASSWORD` or `SESSION_SECRET`. If `SYNC_TOKEN` is missing, the endpoint returns `503` and does not change the roster.
+
+A matching name at that restaurant is updated. A new name is added. A person from an earlier roster file who is missing from this file is marked inactive and hidden from trainer dropdowns. They are not deleted. People added by hand on the Admin page stay as they are.
+
+Success response:
+
+```json
+{
+  "ok": true,
+  "rowsRead": 12,
+  "added": 2,
+  "updated": 8,
+  "deactivated": 1,
+  "skipped": 0,
+  "issues": []
+}
+```
+
+`issues` lists rows that could not be read or restaurants that are not in the tracker. A missing or wrong token returns `401`. An empty body or a file without Name and Store columns returns `400`.
+
+Admin → Trainer roster shows `Last roster sync: <date and time ET>, X added, Y deactivated`.
 
 ## What fails on the first deploy
 

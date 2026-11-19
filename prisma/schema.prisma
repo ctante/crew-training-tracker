@@ -12,11 +12,12 @@ model RosterSync {
   id           String   @id @default(cuid())
   source       String
   createdAt    DateTime @default(now())
-  rowsRead     Int
-  updatedCount Int
-  createdCount Int
-  skippedCount Int
-  note         String   @default("")
+  rowsRead         Int
+  updatedCount     Int
+  createdCount     Int
+  skippedCount     Int
+  deactivatedCount Int      @default(0)
+  note             String   @default("")
 }
 
 model Store {
@@ -80,8 +81,10 @@ model Trainee {
   startDate String
   language  String
   position  String          @default("")
-  path      String?
-  status    String          @default("ACTIVE")
+  path                 String?
+  secondPath           String?
+  firstPathCompletedOn String?
+  status               String          @default("ACTIVE")
   isSample  Boolean         @default(false)
   createdAt DateTime        @default(now())
   updatedAt DateTime        @updatedAt

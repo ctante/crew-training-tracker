@@ -11,6 +11,7 @@ import {
   setStorePassword,
   syncDevelopmentReport,
   addCatalogModule,
+  addSecondPath,
   createTrainee,
   deleteTrainee,
   moveCatalogModule,
@@ -65,7 +66,6 @@ export async function updateTraineeAction(formData: FormData) {
       name: String(formData.get("name") || ""),
       storeId: String(formData.get("storeId") || ""),
       startDate: String(formData.get("startDate") || ""),
-      position: String(formData.get("position") || ""),
       status: String(formData.get("status") || "ACTIVE"),
       path: String(formData.get("path") || ""),
     });
@@ -85,6 +85,17 @@ export async function setTraineePathAction(formData: FormData) {
   }
   refreshAll();
   redirect(`/trainees/${id}?saved=path`);
+}
+
+export async function addSecondPathAction(formData: FormData) {
+  const id = String(formData.get("id") || "");
+  try {
+    await addSecondPath(id);
+  } catch (error) {
+    redirect(`/trainees/${id}?error=${encodeURIComponent(message(error))}`);
+  }
+  refreshAll();
+  redirect(`/trainees/${id}?saved=second`);
 }
 
 export async function changeLanguageAction(formData: FormData) {

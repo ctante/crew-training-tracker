@@ -19,6 +19,7 @@ const links = [
     match: (path: string) => path.startsWith("/trainees"),
   },
   { href: "/path", label: "Path", icon: PathIcon, match: (path: string) => path.startsWith("/path") },
+  { href: "/reports", label: "Reports", icon: ReportIcon, match: (path: string) => path.startsWith("/reports") },
   {
     href: "/admin",
     label: "Admin",
@@ -42,7 +43,7 @@ export function TabNav({ showAdmin = true }: { showAdmin?: boolean }) {
   const items = showAdmin ? links : links.filter((link) => link.href !== "/admin");
   return (
     <nav
-      className={`fixed inset-x-0 bottom-0 z-20 grid border-t border-white/10 bg-bark px-1 pb-[max(0.4rem,env(safe-area-inset-bottom))] pt-1 lg:hidden ${showAdmin ? "grid-cols-5" : "grid-cols-4"}`}
+      className={`fixed inset-x-0 bottom-0 z-20 grid border-t border-white/10 bg-bark px-1 pb-[max(0.4rem,env(safe-area-inset-bottom))] pt-1 lg:hidden ${showAdmin ? "grid-cols-6" : "grid-cols-5"}`}
       aria-label="Main"
     >
       {items.map((link) => (
@@ -118,6 +119,14 @@ function PathIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
       <path d="M5 6h14M5 12h10M5 18h7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function ReportIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M5 19V10M10 19V5M15 19v-6M20 19V8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
     </svg>
   );
 }

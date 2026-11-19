@@ -20,12 +20,13 @@ export default async function SchedulePage({
   const storeNumber = one(params.store);
   const trainerId = one(params.trainer);
   const selected = one(params.date);
+  const tab = one(params.tab) || "scheduled";
   const data = await getSchedule({
     storeNumber,
     trainerId,
     month: one(params.month),
   });
-  const current = { store: storeNumber, trainer: trainerId, month: data.month };
+  const current = { store: storeNumber, trainer: trainerId, month: data.month, date: selected, tab };
   const monthSessions = data.sessions.filter((session) => session.date.startsWith(data.month));
   const overdue = data.sessions.filter((session) => session.overdue);
   const upcoming = monthSessions.filter((session) => session.date >= data.today);
@@ -36,7 +37,6 @@ export default async function SchedulePage({
     monthSessions.filter((session) => session.date === selected && session.overdue),
   ) : null;
   const store = data.locked ? data.stores[0] : data.stores.find((item) => item.number === storeNumber);
-  const grouped = groupByDate(focus ?? upcoming);
 
   return (
     <div>
@@ -130,46 +130,57 @@ export default async function SchedulePage({
         })}
       </div>
 
-      {overdue.length > 0 ? (
-        <section className="mt-6">
-          <h2 className="font-display text-2xl text-brick">Still open from earlier dates</h2>
-          <div className="mt-2 space-y-2">
-            {overdue.map((session) => (
-              <SessionCard key={session.id} session={session} />
-            ))}
-          </div>
-        </section>
-      ) : null}
-
       <section className="mt-6">
-        <h2 className="font-display text-2xl">{selected ? formatShortDate(selected) : "Coming up this month"}</h2>
-        {grouped.length === 0 ? (
-          <p className="mt-2 rounded-3xl border border-dashed border-line bg-card px-4 py-8 text-center text-sm text-ink/70">
-            No open sessions on this view. Set a training date from a trainee page.
-          </p>
-        ) : (
-          grouped.map(([date, sessions]) => (
-            <div key={date} className="mt-3">
-              <h3 className="text-sm font-bold uppercase tracking-[0.14em] text-ink/50">{formatShortDate(date)}</h3>
-              <div className="mt-2 space-y-2">
-                {sessions.map((session) => (
-                  <SessionCard key={session.id} session={session} />
-                ))}
-              </div>
-            </div>
-          ))
-        )}
+        <div className="flex flex-wrap gap-2">
+          <Filter href={withParams("/schedule", current, { tab: null })} active={tab !== "overdue" && tab !== "done"}>
+            Scheduled {upcoming.length}
+          </Filter>
+          <Filter href={withParams("/schedule", current, { tab: "overdue" })} active={tab === "overdue"}>
+            Overdue {overdue.length}
+          </Filter>
+          <Filter href={withParams("/schedule", current, { tab: "done" })} active={tab === "done"}>
+            Done {data.done.length}
+          </Filter>
+        </div>
+        {tab === "overdue" ? (
+          <p className="mt-3 text-sm text-ink/60">Dated before today and not done. The month calendar does not limit this list.</p>
+        ) : null}
+        <h2 className="mt-4 font-display text-2xl">
+          {tab === "overdue" ? "Overdue" : tab === "done" ? "Done this month" : selected ? formatShortDate(selected) : "Coming up this month"}
+        </h2>
+        <TraineeGroups
+          sessions={tab === "overdue" ? overdue : tab === "done" ? data.done : focus ?? upcoming}
+          empty={tab === "overdue" ? "No overdue sessions." : tab === "done" ? "No completed sessions this month." : "No open sessions on this view. Set a training date from a trainee page."}
+        />
       </section>
     </div>
   );
 }
 
-function groupByDate(sessions: ScheduleSession[]) {
+function TraineeGroups({ sessions, empty }: { sessions: ScheduleSession[]; empty: string }) {
   const map = new Map<string, ScheduleSession[]>();
-  for (const session of sessions) {
-    map.set(session.date, [...(map.get(session.date) ?? []), session]);
+  for (const session of [...sessions].sort((a, b) => a.date.localeCompare(b.date))) {
+    map.set(session.traineeId, [...(map.get(session.traineeId) ?? []), session]);
   }
-  return [...map.entries()];
+  const groups = [...map.entries()].sort((a, b) => a[1][0].storeNumber.localeCompare(b[1][0].storeNumber) || a[1][0].traineeName.localeCompare(b[1][0].traineeName));
+  if (groups.length === 0) {
+    return <p className="mt-2 rounded-3xl border border-dashed border-line bg-card px-4 py-8 text-center text-sm text-ink/70">{empty}</p>;
+  }
+  return (
+    <div className="mt-3 space-y-3">
+      {groups.map(([traineeId, rows]) => (
+        <section key={traineeId} className="rounded-3xl border border-line bg-card p-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-ink/45">{storeLabel(rows[0].storeNumber)}</p>
+          <h3 className="text-lg font-semibold">{rows[0].traineeName}</h3>
+          <div className="mt-2 space-y-2">
+            {rows.map((session) => (
+              <SessionCard key={session.id} session={session} />
+            ))}
+          </div>
+        </section>
+      ))}
+    </div>
+  );
 }
 
 function Filter({ href, active, children }: { href: string; active: boolean; children: React.ReactNode }) {

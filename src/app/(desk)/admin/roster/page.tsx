@@ -3,7 +3,7 @@ import { RosterImport } from "@/components/roster-import";
 import { PageHeader, ghostButton } from "@/components/ui";
 import { TRAINER_POSITION_ORDER, groupByTrainerPosition } from "@/lib/constants";
 import { getRosterPage } from "@/lib/data";
-import { formatShortDate, storeLabel } from "@/lib/format";
+import { formatDateTimeEt, storeLabel } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -32,11 +32,13 @@ export default async function RosterPage() {
       </p>
       {roster.lastSync ? (
         <p className="mb-4 rounded-2xl border border-line bg-card px-4 py-3 text-sm">
-          Last {roster.lastSync.source} sync {formatShortDate(roster.lastSync.at.slice(0, 10))}: {roster.lastSync.createdCount}{" "}
-          added, {roster.lastSync.updatedCount} updated, {roster.lastSync.skippedCount} skipped.
+          Last roster sync: {formatDateTimeEt(roster.lastSync.at)}, {roster.lastSync.createdCount} added,{" "}
+          {roster.lastSync.deactivatedCount} deactivated.
           {roster.lastSync.note ? ` ${roster.lastSync.note}` : ""}
         </p>
-      ) : null}
+      ) : (
+        <p className="mb-4 rounded-2xl border border-line bg-card px-4 py-3 text-sm">No roster sync yet.</p>
+      )}
       <RosterImport />
       <div className="mt-8 space-y-5">
         {roster.stores.map((store) => (
