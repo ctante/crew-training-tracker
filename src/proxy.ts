@@ -4,6 +4,7 @@ import { SESSION_COOKIE, verifySessionToken } from "@/lib/session";
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   if (pathname === "/login" || pathname.startsWith("/login/")) return NextResponse.next();
+  if (pathname === "/signin-bg.jpg") return NextResponse.next();
   if (pathname === "/api/sync/roster") return NextResponse.next();
 
   const session = await verifySessionToken(request.cookies.get(SESSION_COOKIE)?.value);
