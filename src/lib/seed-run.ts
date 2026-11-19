@@ -21,6 +21,9 @@ function spreadDates(start: string, end: string, count: number): string[] {
 
 export async function seedCatalog(prisma: PrismaClient) {
   const seeds = loadModuleSeeds();
+  const englishName = new Map(
+    seeds.filter((seed) => seed.language === "en").map((seed) => [seed.sortOrder, seed.name.trim()]),
+  );
   for (const store of SAMPLE_STORES) {
     await prisma.store.upsert({
       where: { number: store.number },
@@ -32,7 +35,11 @@ export async function seedCatalog(prisma: PrismaClient) {
     const existing = await prisma.module.findUnique({
       where: { language_sortOrder: { language: seed.language, sortOrder: seed.sortOrder } },
     });
-    if (!existing) await prisma.module.create({ data: seed });
+    if (!existing) {
+      const curatedSpanish =
+        seed.language === "es" && seed.name.trim() !== "" && seed.name.trim() !== (englishName.get(seed.sortOrder) ?? "");
+      await prisma.module.create({ data: { ...seed, manualTranslation: curatedSpanish } });
+    }
   }
   console.log(
     `Catalog ready: ${SAMPLE_STORES.length} restaurants, ${seeds.length} modules. Position order: ${TRAINER_POSITION_ORDER.join(", ")}.`,

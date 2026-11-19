@@ -15,11 +15,15 @@ import {
   createTrainee,
   deleteTrainee,
   moveCatalogModule,
+  moveCatalogModuleToSection,
   previewImport,
+  previewSpanish,
+  retranslateModule,
   removeCatalogModule,
   restoreCatalogModule,
   setTraineeLanguage,
   setTraineePath,
+  translateMissingSpanish,
   updateModuleTemplate,
   updateProgress,
   updateStaff,
@@ -192,20 +196,56 @@ export async function saveModuleAction(input: {
   link: string;
   videoTitles: string;
   note: string;
+  spanishManual?: { name: string; videoTitles: string; note: string };
 }) {
   try {
-    await updateModuleTemplate(input.id, input);
+    const result = await updateModuleTemplate(input.id, input);
     refreshAll();
-    return { ok: true as const };
+    return { ok: true as const, warning: result.warning, spanish: result.spanish };
   } catch (error) {
     return { ok: false as const, error: message(error) };
   }
 }
 
+export async function previewSpanishAction(input: { name: string; videoTitles: string; note: string }) {
+  try {
+    const text = await previewSpanish(input);
+    return text ? { ok: true as const, text } : { ok: false as const, error: "Spanish translation did not run. You can still save the English module." };
+  } catch (error) {
+    return { ok: false as const, error: message(error) };
+  }
+}
+
+export async function retranslateModuleAction(id: string) {
+  try {
+    const result = await retranslateModule(id);
+    refreshAll();
+    return { ok: true as const, warning: result.warning, spanish: result.spanish };
+  } catch (error) {
+    return { ok: false as const, error: message(error) };
+  }
+}
+
+export async function translateMissingAction() {
+  let notice = "";
+  let warning = "";
+  try {
+    const result = await translateMissingSpanish();
+    notice = `Translated ${result.updated} module${result.updated === 1 ? "" : "s"}. ${result.skipped} already had Spanish text.`;
+    warning = result.warning ? `&warning=${encodeURIComponent(result.warning)}` : "";
+  } catch (error) {
+    redirect(`/admin/modules?error=${encodeURIComponent(message(error))}`);
+  }
+  refreshAll();
+  redirect(`/admin/modules?saved=translated&notice=${encodeURIComponent(notice)}${warning}`);
+}
+
 export async function addModuleAction(formData: FormData) {
   const language = formData.get("lang") === "es" ? "es" : "en";
+  const source = formData.get("spanishSource") === "manual" ? "manual" : "auto";
+  let warning = "";
   try {
-    await addCatalogModule({
+    const result = await addCatalogModule({
       section: String(formData.get("section") || ""),
       nameEn: String(formData.get("nameEn") || ""),
       nameEs: String(formData.get("nameEs") || ""),
@@ -215,12 +255,26 @@ export async function addModuleAction(formData: FormData) {
       link: String(formData.get("link") || ""),
       videoTitles: String(formData.get("videoTitles") || ""),
       note: String(formData.get("note") || ""),
+      videoTitlesEs: String(formData.get("videoTitlesEs") || ""),
+      noteEs: String(formData.get("noteEs") || ""),
+      spanishSource: source,
     });
+    warning = result.warning ? `&warning=${encodeURIComponent(result.warning)}` : "";
   } catch (error) {
     redirect(`/admin/modules?lang=${language}&error=${encodeURIComponent(message(error))}`);
   }
   refreshAll();
-  redirect(`/admin/modules?lang=${language}&saved=added`);
+  redirect(`/admin/modules?lang=${language}&saved=added${warning}`);
+}
+
+export async function moveModuleSectionAction(id: string, section: string) {
+  try {
+    await moveCatalogModuleToSection(id, section);
+    refreshAll();
+    return { ok: true as const };
+  } catch (error) {
+    return { ok: false as const, error: message(error) };
+  }
 }
 
 export async function moveModuleAction(id: string, direction: "up" | "down") {

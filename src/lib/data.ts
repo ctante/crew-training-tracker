@@ -1,7 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { notFound } from "next/navigation";
 import { access, ownsStore, requireAdmin, scopedStoreNumber, type Access } from "./access";
-import { blockStart, canonicalTrainerPosition, compareTrainers, moduleKind, type SectionId } from "./constants";
+import { SECTIONS, blockStart, canonicalTrainerPosition, compareTrainers, moduleKind, type SectionId } from "./constants";
 import { parseCsv, toCsv } from "./csv";
 import { prisma } from "./db";
 import { hashPassword, verifyPassword } from "./passwords";
@@ -31,6 +31,7 @@ import {
 } from "./progress";
 import type { DevelopmentReportSource, RosterEntry } from "./roster/source";
 import { parseDevelopmentReport } from "./roster/parse";
+import { spanishNeedsTranslation, spanishTextUpdate, translateToSpanish, type ModuleText } from "./translate";
 import { sectionTitle, type EditorModule, type ModuleTemplate, type ScheduleSession, type ScheduledSessionRow, type StaffMember, type StoreOption, type TraineeDetail, type TraineeSummary, type TrainerOption } from "./types";
 
 const ITS_HEADER = ["Module", "Time", "Videos", "Credit", "Date", "Trainer", "Completed"];
@@ -925,28 +926,47 @@ export async function updateStaff(
 }
 
 export async function listModules(language: "en" | "es"): Promise<ModuleTemplate[]> {
-  const modules = await prisma.module.findMany({
-    where: { language },
-    orderBy: { sortOrder: "asc" },
+  const [modules, twins] = await Promise.all([
+    prisma.module.findMany({
+      where: { language },
+      orderBy: { sortOrder: "asc" },
+    }),
+    prisma.module.findMany({ where: { language: language === "en" ? "es" : "en" } }),
+  ]);
+  const twinByOrder = new Map(twins.map((row) => [row.sortOrder, row]));
+  return modules.map((module) => {
+    const twin = twinByOrder.get(module.sortOrder);
+    return {
+      id: module.id,
+      language: asLanguage(module.language),
+      section: asSection(module.section),
+      sectionTitle: sectionTitle(module.language, asSection(module.section)),
+      sortOrder: module.sortOrder,
+      name: module.name,
+      timeLabel: module.timeLabel,
+      timeMinutes: module.timeMinutes,
+      videoCount: module.videoCount,
+      credit: module.credit,
+      link: module.link,
+      videoTitles: module.videoTitles,
+      needsReview: module.needsReview,
+      kind: module.kind,
+      note: module.note,
+      archived: module.archived,
+      manualTranslation: module.manualTranslation,
+      spanish:
+        language === "en" && twin
+          ? {
+              id: twin.id,
+              name: twin.name,
+              videoTitles: twin.videoTitles,
+              note: twin.note,
+              link: twin.link,
+              manualTranslation: twin.manualTranslation,
+            }
+          : null,
+    };
   });
-  return modules.map((module) => ({
-    id: module.id,
-    language: asLanguage(module.language),
-    section: asSection(module.section),
-    sectionTitle: sectionTitle(module.language, asSection(module.section)),
-    sortOrder: module.sortOrder,
-    name: module.name,
-    timeLabel: module.timeLabel,
-    timeMinutes: module.timeMinutes,
-    videoCount: module.videoCount,
-    credit: module.credit,
-    link: module.link,
-    videoTitles: module.videoTitles,
-    needsReview: module.needsReview,
-    kind: module.kind,
-    note: module.note,
-    archived: module.archived,
-  }));
 }
 
 export async function updateModuleTemplate(
@@ -959,17 +979,22 @@ export async function updateModuleTemplate(
     link: string;
     videoTitles: string;
     note: string;
+    spanishManual?: ModuleText;
   },
-) {
+): Promise<{ warning?: string; spanish?: ModuleText & { manual: boolean } }> {
   await requireAdmin();
+  const current = await prisma.module.findUnique({ where: { id } });
+  if (!current) throw new Error("That module is not in the catalog.");
   const name = input.name.trim();
   if (!name) throw new Error("Enter a module name.");
+  if (input.spanishManual && !input.spanishManual.name.trim()) throw new Error("Enter the Spanish name.");
   const videoCount = input.videoCount.trim() === "" ? null : Number(input.videoCount);
   if (videoCount !== null && (!Number.isInteger(videoCount) || videoCount < 0 || videoCount > 99)) {
     throw new Error("Video count needs to be a whole number.");
   }
   const credit = input.credit === "Auto" || input.credit === "Manual" ? input.credit : null;
   const link = input.link.trim();
+  const previousLink = current.link;
   await prisma.module.update({
     where: { id },
     data: {
@@ -983,7 +1008,178 @@ export async function updateModuleTemplate(
       note: input.note.trim().slice(0, 400),
       needsReview: /regId=/i.test(link),
       kind: moduleKind({ link, videoCount, credit }),
+      ...(current.language === "es" ? { manualTranslation: true } : {}),
     },
+  });
+  if (current.language === "es") return {};
+  return syncSpanishFromEnglish(id, { previousEnglishLink: previousLink, manualText: input.spanishManual });
+}
+
+export async function retranslateModule(id: string): Promise<{ warning?: string; spanish: ModuleText & { manual: boolean } }> {
+  await requireAdmin();
+  const current = await prisma.module.findUnique({ where: { id } });
+  if (!current) throw new Error("That module is not in the catalog.");
+  const english =
+    current.language === "en"
+      ? current
+      : await prisma.module.findFirst({ where: { language: "en", sortOrder: current.sortOrder } });
+  if (!english) throw new Error("There is no English module to translate.");
+  const result = await syncSpanishFromEnglish(english.id, { previousEnglishLink: english.link, force: true });
+  if (!result.spanish) throw new Error("Spanish translation did not run. The English module was saved.");
+  return { warning: result.warning, spanish: result.spanish };
+}
+
+export async function translateMissingSpanish(): Promise<{ updated: number; skipped: number; warning?: string }> {
+  await requireAdmin();
+  const english = await prisma.module.findMany({ where: { language: "en" }, orderBy: { sortOrder: "asc" } });
+  const spanish = await prisma.module.findMany({ where: { language: "es" } });
+  const byOrder = new Map(spanish.map((row) => [row.sortOrder, row]));
+  let updated = 0;
+  let skipped = 0;
+  let failed = 0;
+  for (const row of english) {
+    const twin = byOrder.get(row.sortOrder) ?? null;
+    const englishText = { name: row.name, videoTitles: row.videoTitles, note: row.note };
+    if (twin?.manualTranslation) {
+      skipped += 1;
+      continue;
+    }
+    if (twin && !spanishNeedsTranslation(englishText, twin, false)) {
+      skipped += 1;
+      continue;
+    }
+    const translated = await translateToSpanish(englishText);
+    if (!translated) {
+      failed += 1;
+      continue;
+    }
+    const text = {
+      name: !twin || !twin.name.trim() || twin.name.trim() === row.name.trim() ? translated.name || row.name : twin.name,
+      videoTitles: !twin || !twin.videoTitles.trim() ? translated.videoTitles : twin.videoTitles,
+      note: !twin || !twin.note.trim() ? translated.note : twin.note,
+    };
+    const link = twin && twin.link.trim() && twin.link.trim() !== row.link.trim() ? twin.link : row.link;
+    const saved = await prisma.module.upsert({
+      where: { language_sortOrder: { language: "es", sortOrder: row.sortOrder } },
+      create: {
+        language: "es",
+        sortOrder: row.sortOrder,
+        ...sharedSpanishFields(row),
+        ...text,
+        ...linkMeta(link, row.videoCount, row.credit),
+        archived: row.archived,
+        manualTranslation: false,
+      },
+      update: {
+        ...sharedSpanishFields(row),
+        ...text,
+        ...linkMeta(link, row.videoCount, row.credit),
+        manualTranslation: false,
+      },
+    });
+    await ensureLanguageProgress(saved.id, "es");
+    updated += 1;
+  }
+  return {
+    updated,
+    skipped,
+    warning: failed > 0 ? `Spanish translation did not run for ${failed} module${failed === 1 ? "" : "s"}. English text was left in place.` : undefined,
+  };
+}
+
+export async function previewSpanish(text: ModuleText): Promise<ModuleText | null> {
+  await requireAdmin();
+  return translateToSpanish(text);
+}
+
+async function syncSpanishFromEnglish(
+  englishId: string,
+  options: { previousEnglishLink: string; force?: boolean; manualText?: ModuleText },
+): Promise<{ warning?: string; spanish?: ModuleText & { manual: boolean } }> {
+  const english = await prisma.module.findUnique({ where: { id: englishId } });
+  if (!english || english.language !== "en") return {};
+  const spanish = await prisma.module.findFirst({ where: { language: "es", sortOrder: english.sortOrder } });
+  const englishText = { name: english.name, videoTitles: english.videoTitles, note: english.note, link: english.link };
+  if (!spanish) {
+    const translated = options.manualText ?? (await translateToSpanish(englishText));
+    const decision = spanishTextUpdate({
+      manual: false,
+      force: true,
+      english: englishText,
+      spanish: { name: "", videoTitles: "", note: "", link: "" },
+      previousEnglishLink: options.previousEnglishLink,
+      translated,
+    });
+    const created = await prisma.module.create({
+      data: {
+        language: "es",
+        sortOrder: english.sortOrder,
+        ...sharedSpanishFields(english),
+        name: decision.text.name.slice(0, 160),
+        videoTitles: decision.text.videoTitles,
+        note: decision.text.note.slice(0, 400),
+        ...linkMeta(decision.link, english.videoCount, english.credit),
+        archived: english.archived,
+        manualTranslation: Boolean(options.manualText),
+      },
+    });
+    await ensureLanguageProgress(created.id, "es");
+    return {
+      warning: decision.warning,
+      spanish: { ...decision.text, manual: Boolean(options.manualText) },
+    };
+  }
+  let translated: ModuleText | null = null;
+  if (options.manualText) translated = options.manualText;
+  else if (!spanish.manualTranslation || options.force) translated = await translateToSpanish(englishText);
+  const decision = spanishTextUpdate({
+    manual: options.manualText ? false : spanish.manualTranslation,
+    force: Boolean(options.force || options.manualText),
+    english: englishText,
+    spanish: { name: spanish.name, videoTitles: spanish.videoTitles, note: spanish.note, link: spanish.link },
+    previousEnglishLink: options.previousEnglishLink,
+    translated,
+  });
+  await prisma.module.update({
+    where: { id: spanish.id },
+    data: {
+      ...sharedSpanishFields(english),
+      name: decision.text.name.slice(0, 160),
+      videoTitles: decision.text.videoTitles,
+      note: decision.text.note.slice(0, 400),
+      ...linkMeta(decision.link, english.videoCount, english.credit),
+      manualTranslation: options.manualText ? true : decision.manual,
+    },
+  });
+  return { warning: decision.warning, spanish: { ...decision.text, manual: options.manualText ? true : decision.manual } };
+}
+
+function sharedSpanishFields(english: { section: string; timeLabel: string; timeMinutes: number | null; videoCount: number | null; credit: string | null }) {
+  const section = asSection(english.section);
+  return {
+    section,
+    sectionLabel: sectionTitle("es", section),
+    timeLabel: english.timeLabel,
+    timeMinutes: english.timeMinutes,
+    videoCount: english.videoCount,
+    credit: english.credit,
+  };
+}
+
+function linkMeta(link: string, videoCount: number | null, credit: string | null) {
+  return {
+    link,
+    needsReview: /regId=/i.test(link),
+    kind: moduleKind({ link, videoCount, credit }),
+  };
+}
+
+async function ensureLanguageProgress(moduleId: string, language: string) {
+  const trainees = await prisma.trainee.findMany({ where: { language }, select: { id: true } });
+  if (!trainees.length) return;
+  await prisma.traineeModule.createMany({
+    data: trainees.map((trainee) => ({ traineeId: trainee.id, moduleId })),
+    skipDuplicates: true,
   });
 }
 
@@ -1050,18 +1246,46 @@ export async function addCatalogModule(input: {
   link: string;
   videoTitles: string;
   note: string;
-}) {
+  videoTitlesEs?: string;
+  noteEs?: string;
+  spanishSource?: "auto" | "manual";
+}): Promise<{ enId: string; esId: string; warning?: string }> {
   await requireAdmin();
   const section = catalogSection(input.section);
+  const source = input.spanishSource ?? (input.nameEs.trim() ? "manual" : "auto");
+  let esName = input.nameEs.trim();
+  let esTitles = (input.videoTitlesEs ?? input.videoTitles).trim();
+  let esNote = (input.noteEs ?? input.note).trim();
+  let warning: string | undefined;
+  if (source === "auto" && !esName) {
+    const translated = await translateToSpanish({
+      name: input.nameEn,
+      videoTitles: input.videoTitles,
+      note: input.note,
+    });
+    if (translated?.name.trim()) {
+      esName = translated.name;
+      esTitles = translated.videoTitles;
+      esNote = translated.note;
+    } else {
+      esName = input.nameEn.trim();
+      esTitles = input.videoTitles.trim();
+      esNote = input.note.trim();
+      warning = "Spanish translation did not run. English text was saved for the Spanish module too.";
+    }
+  }
+  if (!esTitles) esTitles = input.videoTitles.trim();
+  if (!esNote) esNote = input.note.trim();
   const english = catalogWrite("en", section, { ...input, name: input.nameEn });
-  const spanish = catalogWrite("es", section, { ...input, name: input.nameEs });
+  const spanish = catalogWrite("es", section, { ...input, name: esName, videoTitles: esTitles, note: esNote });
+  const manualTranslation = source === "manual";
   return prisma.$transaction(async (tx) => {
     const inSection = await tx.module.findMany({ where: { language: "en", section } });
     const insertAt = inSection.length ? Math.max(...inSection.map((row) => row.sortOrder)) + 1 : 1;
     await shiftSortOrders(tx, "en", insertAt);
     await shiftSortOrders(tx, "es", insertAt);
     const en = await tx.module.create({ data: { ...english, sortOrder: insertAt } });
-    const es = await tx.module.create({ data: { ...spanish, sortOrder: insertAt } });
+    const es = await tx.module.create({ data: { ...spanish, sortOrder: insertAt, manualTranslation } });
     for (const created of [en, es]) {
       const trainees = await tx.trainee.findMany({ where: { language: created.language }, select: { id: true } });
       if (trainees.length) {
@@ -1071,7 +1295,7 @@ export async function addCatalogModule(input: {
         });
       }
     }
-    return { enId: en.id, esId: es.id };
+    return { enId: en.id, esId: es.id, warning };
   });
 }
 
@@ -1125,6 +1349,54 @@ export async function restoreCatalogModule(id: string) {
       skipDuplicates: true,
     });
   }
+}
+
+function sectionInsertAt(modules: { section: string; sortOrder: number }[], section: SectionId): number {
+  const inSection = modules.filter((row) => row.section === section);
+  if (inSection.length) return Math.max(...inSection.map((row) => row.sortOrder)) + 1;
+  const index = SECTIONS.indexOf(section);
+  const later = modules.filter((row) => SECTIONS.indexOf(asSection(row.section)) > index);
+  if (later.length) return Math.min(...later.map((row) => row.sortOrder));
+  const earlier = modules.filter((row) => SECTIONS.indexOf(asSection(row.section)) < index);
+  if (earlier.length) return Math.max(...earlier.map((row) => row.sortOrder)) + 1;
+  return 1;
+}
+
+export async function moveCatalogModuleToSection(id: string, sectionValue: string) {
+  await requireAdmin();
+  const section = catalogSection(sectionValue);
+  const current = await prisma.module.findUnique({ where: { id } });
+  if (!current) throw new Error("That module is not in the catalog.");
+  if (current.section === section) return;
+  const movedIds = await prisma.$transaction(async (tx) => {
+    const moving = await tx.module.findMany({ where: { sortOrder: current.sortOrder } });
+    for (const row of moving) {
+      await tx.module.update({
+        where: { id: row.id },
+        data: { sortOrder: -1_000_000 - row.sortOrder },
+      });
+    }
+    const english = await tx.module.findMany({ where: { language: "en", sortOrder: { gt: 0 } } });
+    const insertAt = sectionInsertAt(english, section);
+    await shiftSortOrders(tx, "en", insertAt);
+    await shiftSortOrders(tx, "es", insertAt);
+    for (const row of moving) {
+      await tx.module.update({
+        where: { id: row.id },
+        data: {
+          sortOrder: insertAt,
+          section,
+          sectionLabel: sectionTitle(row.language === "es" ? "es" : "en", section),
+        },
+      });
+    }
+    return moving.map((row) => row.id);
+  });
+  const trainees = await prisma.trainee.findMany({
+    where: { modules: { some: { moduleId: { in: movedIds } } } },
+    select: { id: true },
+  });
+  for (const trainee of trainees) await syncStatus(trainee.id);
 }
 
 export async function moveCatalogModule(id: string, direction: "up" | "down") {

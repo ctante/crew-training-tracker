@@ -67,6 +67,7 @@ model Module {
   kind         String
   note         String          @default("")
   archived     Boolean         @default(false)
+  manualTranslation Boolean    @default(false)
   progress     TraineeModule[]
 
   @@unique([language, sortOrder])

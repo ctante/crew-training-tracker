@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ModuleLinks } from "@/components/module-links";
 import { Flag, PageHeader } from "@/components/ui";
 import { BLOCKS, CAMPUS_HOME, blockFor } from "@/lib/constants";
 import { listModules } from "@/lib/data";
@@ -82,14 +83,8 @@ export default async function PathPage({
                   </div>
                 </div>
                 {module.note ? <p className="mt-2 text-sm text-sun-deep">{module.note}</p> : null}
-                <div className="mt-2 flex flex-wrap gap-3 text-sm">
-                  {module.link ? (
-                    <a className="font-semibold text-campus" href={module.link} target="_blank" rel="noopener noreferrer">
-                      Open module
-                    </a>
-                  ) : (
-                    <span className="text-ink/50">No Campus link</span>
-                  )}
+                <div className="mt-2">
+                  <ModuleLinks link={module.link} empty="No Campus link" />
                   {titles.length > 0 ? (
                     <details>
                       <summary className="cursor-pointer font-semibold">Video titles</summary>
