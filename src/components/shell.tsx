@@ -17,7 +17,7 @@ export function Shell({
     <div className="min-h-screen lg:grid lg:grid-cols-[240px_minmax(0,1fr)]">
       <aside className="sticky top-0 hidden h-screen flex-col bg-bark text-white lg:flex">
         <Link href="/" className="block px-5 pb-2 pt-6">
-          <p className="font-display text-2xl leading-none text-sun">Crew Training</p>
+          <p className="font-display text-xl leading-tight text-sun">Individual Training System (ITS)</p>
           <p className="mt-1 text-sm text-white/70">Signed in · {signedInLabel}</p>
         </Link>
         <SideNav showAdmin={showAdmin} />
@@ -30,7 +30,7 @@ export function Shell({
       <div className="min-w-0">
         <header className="sticky top-0 z-10 flex items-center justify-between border-b border-line/80 bg-paper/95 px-4 py-3 backdrop-blur lg:hidden">
           <Link href="/">
-            <p className="font-display text-xl leading-none text-bark">Crew Training</p>
+            <p className="font-display text-xl leading-none text-bark">ITS</p>
             <p className="text-xs text-ink/60">Signed in · {signedInLabel}</p>
           </Link>
           <div className="flex items-center gap-3">

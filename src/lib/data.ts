@@ -316,13 +316,7 @@ export async function getDashboard(filters: {
     ? byStatus.filter((row) => row.storeNumber === filters.storeNumber)
     : byStatus;
   const query = (filters.query ?? "").trim().toLowerCase();
-  let rows = query
-    ? scoped.filter(
-        (row) =>
-          row.name.toLowerCase().includes(query) ||
-          row.position.toLowerCase().includes(query),
-      )
-    : scoped;
+  let rows = query ? scoped.filter((row) => row.name.toLowerCase().includes(query)) : scoped;
   if (filters.flag === "overdue") rows = rows.filter((row) => row.progress.overdueCount > 0);
   if (filters.flag === "stalled") rows = rows.filter((row) => row.progress.stalled);
   if (filters.flag === "today") rows = rows.filter((row) => row.progress.dueTodayCount > 0);
@@ -649,7 +643,13 @@ export async function updateProgress(input: {
   await syncStatus(row.traineeId);
 }
 
-export async function getSchedule(filters: { storeNumber?: string; trainerId?: string; month?: string }) {
+function matchesTraineeName(name: string, query?: string) {
+  const needle = (query ?? "").trim().toLowerCase();
+  if (!needle) return true;
+  return name.toLowerCase().includes(needle);
+}
+
+export async function getSchedule(filters: { storeNumber?: string; trainerId?: string; month?: string; query?: string }) {
   const who = await access();
   const storeNumber = scopedStoreNumber(who, filters.storeNumber);
   const today = todayIso();
@@ -729,11 +729,11 @@ export async function getSchedule(filters: { storeNumber?: string; trainerId?: s
     left.traineeName.localeCompare(right.traineeName);
   const sessions = rows.flatMap((row) => {
     const session = toSession(row, false);
-    return session ? [session] : [];
+    return session && matchesTraineeName(session.traineeName, filters.query) ? [session] : [];
   }).sort(byDate);
   const done = doneRows.flatMap((row) => {
     const session = toSession(row, true);
-    return session ? [session] : [];
+    return session && matchesTraineeName(session.traineeName, filters.query) ? [session] : [];
   }).sort(byDate);
   if (filters.trainerId && !people.some((person) => person.id === filters.trainerId)) notFound();
   return {
@@ -766,6 +766,7 @@ export async function getScheduledSessions(filters: {
   range?: string;
   from?: string;
   to?: string;
+  query?: string;
 }) {
   const who = await access();
   const storeNumber = scopedStoreNumber(who, filters.storeNumber);
@@ -816,11 +817,11 @@ export async function getScheduledSessions(filters: {
     left.traineeName.localeCompare(right.traineeName) ||
     left.moduleName.localeCompare(right.moduleName);
   const sessions = rows
-    .filter((row) => row.scheduledDate && rowIsVisible(row.trainee, row.module))
+    .filter((row) => row.scheduledDate && rowIsVisible(row.trainee, row.module) && matchesTraineeName(row.trainee.name, filters.query))
     .map(toRow)
     .sort(sortRows);
   const overdue = overdueSource
-    .filter((row) => row.scheduledDate && rowIsVisible(row.trainee, row.module))
+    .filter((row) => row.scheduledDate && rowIsVisible(row.trainee, row.module) && matchesTraineeName(row.trainee.name, filters.query))
     .map(toRow)
     .sort(sortRows);
   return {
@@ -1219,7 +1220,7 @@ export async function exportAllCsv() {
       ]);
     }
   }
-  return { filename: "crew-training-progress.csv", csv: toCsv(rows) };
+  return { filename: "its-progress.csv", csv: toCsv(rows) };
 }
 
 export async function exportTemplateCsv(language: "en" | "es") {
@@ -1871,7 +1872,7 @@ export async function matchLogin(password: string) {
 
 export async function setStorePassword(storeId: string, password: string, confirm: string) {
   await requireAdmin();
-  if (password.length < 8) throw new Error("Use at least 8 characters.");
+  if (password.length < 1) throw new Error("Enter a password.");
   if (password !== confirm) throw new Error("Type the same password in both fields.");
   const adminPassword = process.env.APP_PASSWORD;
   if (adminPassword && safeEqual(password, adminPassword)) {

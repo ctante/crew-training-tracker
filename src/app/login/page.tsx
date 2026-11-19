@@ -17,7 +17,7 @@ export default async function LoginPage({
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center px-5 py-10">
-      <p className="text-xs font-bold uppercase tracking-[0.18em] text-brick">Crew Training Tracker</p>
+      <p className="text-xs font-bold uppercase tracking-[0.18em] text-brick">Individual Training System (ITS)</p>
       <h1 className="mt-2 font-display text-4xl text-ink">Team sign-in</h1>
       <p className="mt-2 text-sm leading-6 text-ink/70">
         Use the admin password, or the password for your restaurant. Ask the person who set up the site if you need it.

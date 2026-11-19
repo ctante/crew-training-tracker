@@ -38,7 +38,7 @@ export function LoginForm({ nextPath }: { nextPath: string }) {
         </p>
       ) : null}
       <button className={primaryButton} type="submit" disabled={pending}>
-        {pending ? "Checking" : "Open the tracker"}
+        {pending ? "Checking" : "Sign in"}
       </button>
     </form>
   );

@@ -1,5 +1,7 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import { DateRangeFilters } from "@/components/date-range-filters";
+import { TraineeSearch } from "@/components/trainee-search";
 import { Flag, PageHeader, ProgressBar } from "@/components/ui";
 import { languageName, SECTION_TITLES } from "@/lib/constants";
 import { getDashboard, getScheduledSessions } from "@/lib/data";
@@ -26,12 +28,13 @@ export default async function HomePage({
   const to = one(params.to);
   const sessionTab = one(params.tab) || "scheduled";
   const data = await getDashboard({ storeNumber, status, flag, query });
-  const sessions = view === "sessions" ? await getScheduledSessions({ storeNumber, range, from, to }) : null;
+  const sessions = view === "sessions" ? await getScheduledSessions({ storeNumber, range, from, to, query }) : null;
   const current = { store: storeNumber, status: status === "ACTIVE" ? "" : status, flag, q: query };
   const sessionQuery = {
     view: "sessions",
     store: storeNumber,
     tab: sessionTab,
+    q: query,
     range: sessions?.range || range,
     from: sessions?.range === "custom" ? sessions.start : "",
     to: sessions?.range === "custom" ? sessions.end : "",
@@ -56,10 +59,10 @@ export default async function HomePage({
       ) : null}
 
       <div className="mb-4 flex gap-2">
-        <Chip href={withParams("/", { store: storeNumber }, { view: null })} active={view === "board"}>
+        <Chip href={withParams("/", { store: storeNumber, q: query }, { view: null })} active={view === "board"}>
           Trainees
         </Chip>
-        <Chip href={withParams("/", { store: storeNumber }, { view: "sessions" })} active={view === "sessions"}>
+        <Chip href={withParams("/", { store: storeNumber, q: query }, { view: "sessions" })} active={view === "sessions"}>
           Scheduled sessions
         </Chip>
       </div>
@@ -67,7 +70,7 @@ export default async function HomePage({
       {sessions ? (
         <SessionsPanel sessions={sessions} storeNumber={storeNumber} sessionQuery={sessionQuery} tab={sessionTab} />
       ) : (
-        <TraineeBoard data={data} storeNumber={storeNumber} status={status} flag={flag} query={query} current={current} />
+        <TraineeBoard data={data} storeNumber={storeNumber} status={status} flag={flag} current={current} />
       )}
     </div>
   );
@@ -78,14 +81,12 @@ function TraineeBoard({
   storeNumber,
   status,
   flag,
-  query,
   current,
 }: {
   data: Awaited<ReturnType<typeof getDashboard>>;
   storeNumber: string;
   status: string;
   flag: string;
-  query: string;
   current: Record<string, string>;
 }) {
   return (
@@ -158,18 +159,11 @@ function TraineeBoard({
             {label}
           </Chip>
         ))}
-        <form action="/" className="ml-auto flex min-w-48 flex-1 gap-2 sm:max-w-xs">
-          {storeNumber ? <input type="hidden" name="store" value={storeNumber} /> : null}
-          {status !== "ACTIVE" ? <input type="hidden" name="status" value={status} /> : null}
-          {flag ? <input type="hidden" name="flag" value={flag} /> : null}
-          <input
-            name="q"
-            defaultValue={query}
-            placeholder="Search name"
-            className="min-h-11 w-full rounded-full border border-line bg-card px-4 text-sm"
-            aria-label="Search trainees"
-          />
-        </form>
+        <div className="ml-auto min-w-48 flex-1 sm:max-w-xs">
+          <Suspense fallback={null}>
+            <TraineeSearch />
+          </Suspense>
+        </div>
       </div>
 
       <div className="mt-5 space-y-3">
@@ -229,6 +223,11 @@ function SessionsPanel({
             {storeLabel(store.number)}
           </Chip>
         ))}
+      </div>
+      <div className="mt-3 max-w-xs">
+        <Suspense fallback={null}>
+          <TraineeSearch />
+        </Suspense>
       </div>
       <div className="mt-3">
         <DateRangeFilters path="/" query={sessionQuery} range={sessions.range} start={sessions.start} end={sessions.end} />

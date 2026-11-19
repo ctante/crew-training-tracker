@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { Suspense } from "react";
+import { TraineeSearch } from "@/components/trainee-search";
 import { Flag, PageHeader } from "@/components/ui";
 import { languageName } from "@/lib/constants";
 import { getDashboard } from "@/lib/data";
@@ -13,8 +15,10 @@ export default async function TraineesPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const list = one((await searchParams).list) || "progress";
-  const data = await getDashboard({ status: "all" });
+  const params = await searchParams;
+  const list = one(params.list) || "progress";
+  const query = one(params.q);
+  const data = await getDashboard({ status: "all", query });
   const rows = data.rows.filter((row) => {
     if (list === "all") return true;
     if (list === "done") return row.scheduleComplete;
@@ -42,6 +46,11 @@ export default async function TraineesPage({
           </Link>
         }
       />
+      <div className="mb-4 max-w-xs">
+        <Suspense fallback={null}>
+          <TraineeSearch />
+        </Suspense>
+      </div>
       <div className="mb-4 flex flex-wrap gap-2">
         {(
           [
@@ -52,7 +61,7 @@ export default async function TraineesPage({
         ).map(([value, label]) => (
           <Link
             key={value}
-            href={value === "progress" ? "/trainees" : withParams("/trainees", {}, { list: value })}
+            href={withParams("/trainees", { q: query }, { list: value === "progress" ? null : value })}
             className={`inline-flex min-h-10 items-center rounded-full border px-3 text-sm font-semibold ${
               list === value ? "border-bark bg-bark text-white" : "border-line bg-card"
             }`}

@@ -1,4 +1,4 @@
-# Crew Training Tracker
+# Individual Training System (ITS)
 
 A phone-friendly desk for general managers and crew trainers. It replaces the per-trainee Individual Training Schedule (ITS) tabs: one 36-module path, a date and a trainer on each row, and a store agenda of sessions that are scheduled and still open.
 
