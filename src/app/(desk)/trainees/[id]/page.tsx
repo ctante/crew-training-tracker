@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { changeLanguageAction, deleteTraineeAction, updateTraineeAction } from "@/app/actions";
+import { changeLanguageAction, deleteTraineeAction, setTraineePathAction, updateTraineeAction } from "@/app/actions";
 import { TraineeEditor } from "@/components/trainee-editor";
 import { Flag, Flash, PageHeader, ProgressBar, fieldClass, ghostButton, primaryButton } from "@/components/ui";
 import { languageName } from "@/lib/constants";
@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const trainee = await getTrainee(id);
-  return { title: trainee?.name ?? "Trainee" };
+  return { title: trainee ? "Individual Training Schedule (ITS)" : "Individual Training Schedule (ITS)" };
 }
 
 export default async function TraineePage({
@@ -29,14 +29,20 @@ export default async function TraineePage({
   const today = todayIso();
   const saved = one(query.saved);
   const notice =
-    saved === "details" ? "Trainee details saved." : saved === "language" ? "The path language was switched. Step progress stayed on the same numbers." : "";
+    saved === "details"
+      ? "Schedule details saved."
+      : saved === "path"
+        ? "Path saved. This schedule shows Foundation plus that section."
+        : saved === "language"
+          ? "The language was switched. Step progress stayed on the same numbers."
+          : "";
 
   return (
     <div>
       <PageHeader
-        kicker={storeLabel(trainee.storeNumber)}
-        title={trainee.name}
-        description={`${languageName(trainee.language)} path${trainee.position ? ` · ${trainee.position}` : ""} · started ${trainee.startDate}`}
+        kicker={`${storeLabel(trainee.storeNumber)} · ${trainee.name}`}
+        title="Individual Training Schedule (ITS)"
+        description={`${trainee.path === "SERVICE" ? "Service" : trainee.path === "PRODUCTION" ? "Production" : "Path not chosen"} · ${languageName(trainee.language)}${trainee.position ? ` · ${trainee.position}` : ""} · started ${trainee.startDate}`}
         actions={
           <a href={`/api/export/${trainee.id}`} className={ghostButton}>
             Export ITS
@@ -50,7 +56,40 @@ export default async function TraineePage({
         {trainee.status === "COMPLETED" ? <Flag kind="done">Completed</Flag> : null}
         {trainee.progress.overdueCount > 0 ? <Flag kind="overdue">{trainee.progress.overdueCount} overdue</Flag> : null}
         {trainee.progress.stalled ? <Flag kind="stalled">Stalled</Flag> : null}
+        {!trainee.path ? <Flag kind="review">Choose path</Flag> : null}
       </div>
+
+      {!trainee.path ? (
+        <form action={setTraineePathAction} className="mb-4 rounded-3xl border border-amber-300 bg-sun/40 p-4">
+          <input type="hidden" name="id" value={trainee.id} />
+          <p className="font-semibold">Choose path</p>
+          <p className="mt-1 text-sm text-ink/70">
+            Foundation is on this schedule. Add Service or Production. The other section stays saved and hidden.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button className={primaryButton} name="path" value="SERVICE" type="submit">
+              Service
+            </button>
+            <button className={primaryButton} name="path" value="PRODUCTION" type="submit">
+              Production
+            </button>
+          </div>
+        </form>
+      ) : (
+        <form action={setTraineePathAction} className="mb-4 flex flex-wrap items-end gap-3">
+          <input type="hidden" name="id" value={trainee.id} />
+          <label className="text-sm font-semibold">
+            Path
+            <select className={`${fieldClass} mt-1`} name="path" defaultValue={trainee.path}>
+              <option value="SERVICE">Service</option>
+              <option value="PRODUCTION">Production</option>
+            </select>
+          </label>
+          <button className={ghostButton} type="submit">
+            Save path
+          </button>
+        </form>
+      )}
 
       <section className="rounded-3xl border border-line bg-card p-4 shadow-sm">
         <div className="flex items-end justify-between gap-3">
@@ -63,7 +102,7 @@ export default async function TraineePage({
         <div className="mt-3">
           <ProgressBar value={trainee.progress.percent} />
         </div>
-        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+        <div className={`mt-4 grid gap-3 ${trainee.progress.sections.length > 2 ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
           {trainee.progress.sections.map((section) => {
             const percent = section.total ? Math.round((section.completed / section.total) * 100) : 0;
             const title =
@@ -122,6 +161,16 @@ export default async function TraineePage({
             <input className={`${fieldClass} mt-1`} name="position" defaultValue={trainee.position} />
           </label>
           <label className="text-sm font-semibold">
+            Path
+            <select className={`${fieldClass} mt-1`} name="path" required defaultValue={trainee.path ?? ""}>
+              <option value="" disabled>
+                Choose a path
+              </option>
+              <option value="SERVICE">Service</option>
+              <option value="PRODUCTION">Production</option>
+            </select>
+          </label>
+          <label className="text-sm font-semibold">
             Status
             <select className={`${fieldClass} mt-1`} name="status" defaultValue={trainee.status}>
               <option value="ACTIVE">Active</option>
@@ -148,7 +197,7 @@ export default async function TraineePage({
             Switch language
           </button>
           <p className="max-w-md text-sm text-ink/60">
-            Checks, dates, trainers, and notes stay on the same step number. Names and Campus links change.
+            Checks, dates, and trainers stay on the same step number. Names and Campus links change.
           </p>
         </form>
         <form action={deleteTraineeAction} className="mt-4 border-t border-line pt-4">

@@ -1,3 +1,4 @@
+import type { Prisma } from "@prisma/client";
 import { notFound } from "next/navigation";
 import { access, ownsStore, requireAdmin, scopedStoreNumber, type Access } from "./access";
 import { blockStart, canonicalTrainerPosition, compareTrainers, moduleKind, type SectionId } from "./constants";
@@ -12,13 +13,22 @@ import {
   parseCompletedFlag,
   parseLooseDate,
   parseTimeMinutes,
+  sessionWindow,
   splitTitles,
   todayIso,
 } from "./format";
-import { summarize, type ModuleSnap } from "./progress";
+import {
+  hasProgressMark,
+  inferPathChoice,
+  onTrainingPath,
+  parseTrainingPath,
+  summarize,
+  type ModuleSnap,
+  type TrainingPath,
+} from "./progress";
 import type { DevelopmentReportSource, RosterEntry } from "./roster/source";
 import { parseDevelopmentReport } from "./roster/parse";
-import { sectionTitle, type EditorModule, type ModuleTemplate, type ScheduleSession, type StaffMember, type StoreOption, type TraineeDetail, type TraineeSummary, type TrainerOption } from "./types";
+import { sectionTitle, type EditorModule, type ModuleTemplate, type ScheduleSession, type ScheduledSessionRow, type StaffMember, type StoreOption, type TraineeDetail, type TraineeSummary, type TrainerOption } from "./types";
 
 const ITS_HEADER = ["Module", "Time", "Videos", "Credit", "Date", "Trainer", "Completed"];
 const BULK_HEADER = [
@@ -48,6 +58,7 @@ type TraineeRecord = {
   startDate: string;
   language: string;
   position: string;
+  path: string | null;
   status: string;
   isSample: boolean;
   store: { id: string; number: string; name: string };
@@ -75,6 +86,7 @@ type TraineeRecord = {
       needsReview: boolean;
       kind: string;
       note: string;
+      archived: boolean;
     };
   }[];
 };
@@ -103,7 +115,19 @@ function snaps(trainee: TraineeRecord): ModuleSnap[] {
     completedDate: row.completedDate,
     scheduledDate: row.scheduledDate,
     trainerLabel: row.trainerLabel,
+    archived: row.module.archived,
   }));
+}
+
+function traineePath(trainee: { path: string | null }): TrainingPath | null {
+  return parseTrainingPath(trainee.path);
+}
+
+function rowIsVisible(
+  trainee: { path: string | null; language: string },
+  module: { section: string; archived: boolean; language: string },
+) {
+  return module.language === trainee.language && onTrainingPath(asSection(module.section), traineePath(trainee), module.archived);
 }
 
 function toSummary(trainee: TraineeRecord, today: string): TraineeSummary {
@@ -115,6 +139,7 @@ function toSummary(trainee: TraineeRecord, today: string): TraineeSummary {
     storeName: trainee.store.name,
     language: asLanguage(trainee.language),
     position: trainee.position,
+    path: traineePath(trainee),
     startDate: trainee.startDate,
     status: trainee.status,
     isSample: trainee.isSample,
@@ -122,6 +147,7 @@ function toSummary(trainee: TraineeRecord, today: string): TraineeSummary {
       startDate: trainee.startDate,
       status: trainee.status,
       today,
+      path: traineePath(trainee),
     }),
   };
 }
@@ -135,6 +161,7 @@ function trainerValue(row: { trainerId: string | null; trainerLabel: string }): 
 
 function toEditor(trainee: TraineeRecord): EditorModule[] {
   return [...trainee.modules]
+    .filter((row) => rowIsVisible(trainee, row.module))
     .sort((a, b) => a.module.sortOrder - b.module.sortOrder)
     .map((row) => {
       const block = blockStart(row.module.sortOrder);
@@ -167,10 +194,22 @@ function toEditor(trainee: TraineeRecord): EditorModule[] {
 async function syncStatus(traineeId: string) {
   const trainee = await prisma.trainee.findUnique({
     where: { id: traineeId },
-    include: { modules: true },
+    include: { modules: { include: { module: true } } },
   });
   if (!trainee || trainee.modules.length === 0) return;
-  const allDone = trainee.modules.every((row) => row.completed);
+  const path = traineePath(trainee);
+  if (!path) {
+    const foundationOpen = trainee.modules.some(
+      (row) => rowIsVisible(trainee, row.module) && !row.completed,
+    );
+    if (foundationOpen && trainee.status === "COMPLETED") {
+      await prisma.trainee.update({ where: { id: traineeId }, data: { status: "ACTIVE" } });
+    }
+    return;
+  }
+  const visible = trainee.modules.filter((row) => rowIsVisible(trainee, row.module));
+  if (visible.length === 0) return;
+  const allDone = visible.every((row) => row.completed);
   if (allDone && trainee.status !== "COMPLETED") {
     await prisma.trainee.update({ where: { id: traineeId }, data: { status: "COMPLETED" } });
   } else if (!allDone && trainee.status === "COMPLETED") {
@@ -230,6 +269,7 @@ export async function getDashboard(filters: {
   if (filters.flag === "overdue") rows = rows.filter((row) => row.progress.overdueCount > 0);
   if (filters.flag === "stalled") rows = rows.filter((row) => row.progress.stalled);
   if (filters.flag === "today") rows = rows.filter((row) => row.progress.dueTodayCount > 0);
+  if (filters.flag === "path") rows = rows.filter((row) => !row.path);
   rows.sort((a, b) => {
     const rank = (row: TraineeSummary) => {
       if (row.progress.overdueCount > 0) return 0;
@@ -262,6 +302,7 @@ export async function getDashboard(filters: {
       overdueSessions: scoped.reduce((sum, row) => sum + row.progress.overdueCount, 0),
       stalled: scoped.filter((row) => row.progress.stalled).length,
       dueToday: scoped.filter((row) => row.progress.dueTodayCount > 0).length,
+      needsPath: summaries.filter((row) => row.status === "ACTIVE" && !row.path).length,
     },
     rows,
     locked: who.role === "store",
@@ -308,6 +349,7 @@ export async function getTrainee(id: string, scope?: Access): Promise<TraineeDet
       startDate: record.startDate,
       status: record.status,
       today,
+      path: traineePath(record),
     }),
     trainers: options,
     modules: toEditor(record),
@@ -321,26 +363,30 @@ export async function createTrainee(input: {
   startDate: string;
   language: string;
   position: string;
+  path: string;
 }) {
   const name = input.name.trim();
   if (name.length < 2) throw new Error("Enter the trainee name.");
   if (!/^\d{4}-\d{2}-\d{2}$/.test(input.startDate)) throw new Error("Choose a start date.");
   const language = input.language === "es" ? "es" : input.language === "en" ? "en" : "";
   if (!language) throw new Error("Choose English or Spanish.");
+  const path = parseTrainingPath(input.path);
+  if (!path) throw new Error("Choose Service or Production.");
   await ownsStore(input.storeId);
   const store = await prisma.store.findUnique({ where: { id: input.storeId } });
   if (!store) throw new Error("Choose a restaurant.");
   const modules = await prisma.module.findMany({
-    where: { language },
+    where: { language, archived: false },
     orderBy: { sortOrder: "asc" },
   });
-  if (modules.length !== 36) throw new Error("The training path is missing modules.");
+  if (modules.length === 0) throw new Error("The training path is missing modules.");
   const trainee = await prisma.trainee.create({
     data: {
       name,
       storeId: store.id,
       startDate: input.startDate,
       language,
+      path,
       position: input.position.trim(),
       status: "ACTIVE",
       isSample: false,
@@ -352,12 +398,14 @@ export async function createTrainee(input: {
 
 export async function updateTrainee(
   id: string,
-  input: { name: string; storeId: string; startDate: string; position: string; status: string },
+  input: { name: string; storeId: string; startDate: string; position: string; status: string; path: string },
 ) {
   const name = input.name.trim();
   if (name.length < 2) throw new Error("Enter the trainee name.");
   if (!/^\d{4}-\d{2}-\d{2}$/.test(input.startDate)) throw new Error("Choose a start date.");
   if (!["ACTIVE", "PAUSED", "COMPLETED"].includes(input.status)) throw new Error("Unknown status.");
+  const path = parseTrainingPath(input.path);
+  if (!path) throw new Error("Choose Service or Production.");
   const current = await prisma.trainee.findUnique({ where: { id } });
   if (!current) throw new Error("Trainee not found.");
   await ownsStore(current.storeId);
@@ -365,9 +413,19 @@ export async function updateTrainee(
   const store = await prisma.store.findUnique({ where: { id: input.storeId } });
   if (!store) throw new Error("Choose a restaurant.");
   if (input.status === "COMPLETED") {
-    const open = await prisma.traineeModule.count({ where: { traineeId: id, completed: false } });
+    const open = await prisma.traineeModule.count({
+      where: {
+        traineeId: id,
+        completed: false,
+        module: {
+          archived: false,
+          language: current.language,
+          section: { in: path === "SERVICE" ? ["FOUNDATION", "SERVICE"] : ["FOUNDATION", "PRODUCTION"] },
+        },
+      },
+    });
     if (open > 0) {
-      throw new Error("Open modules are still on the path. Pause the trainee, or check the remaining modules.");
+      throw new Error("Open modules are still on this path. Pause the trainee, or check the remaining modules.");
     }
   }
   await prisma.trainee.update({
@@ -378,6 +436,7 @@ export async function updateTrainee(
       startDate: input.startDate,
       position: input.position.trim(),
       status: input.status,
+      path,
     },
   });
   if (current.storeId !== store.id) {
@@ -393,6 +452,17 @@ export async function updateTrainee(
       });
     }
   }
+  await syncStatus(id);
+}
+
+export async function setTraineePath(id: string, path: string) {
+  const parsed = parseTrainingPath(path);
+  if (!parsed) throw new Error("Choose Service or Production.");
+  const current = await prisma.trainee.findUnique({ where: { id } });
+  if (!current) throw new Error("Trainee not found.");
+  await ownsStore(current.storeId);
+  await prisma.trainee.update({ where: { id }, data: { path: parsed } });
+  await syncStatus(id);
 }
 
 export async function deleteTrainee(id: string, scope?: Access) {
@@ -415,21 +485,26 @@ export async function setTraineeLanguage(id: string, language: "en" | "es") {
     orderBy: { sortOrder: "asc" },
   });
   const current = [...trainee.modules].sort((a, b) => a.module.sortOrder - b.module.sortOrder);
-  if (current.length !== nextModules.length) throw new Error("The two language paths differ in length.");
   await prisma.$transaction(async (tx) => {
-    await tx.traineeModule.deleteMany({ where: { traineeId: id } });
-    await tx.traineeModule.createMany({
-      data: nextModules.map((module, index) => ({
-        traineeId: id,
-        moduleId: module.id,
-        scheduledDate: current[index]?.scheduledDate ?? null,
-        trainerId: current[index]?.trainerId ?? null,
-        trainerLabel: current[index]?.trainerLabel ?? "",
-        completed: current[index]?.completed ?? false,
-        completedDate: current[index]?.completedDate ?? null,
-        notes: current[index]?.notes ?? "",
-      })),
-    });
+    const byOrder = new Map(nextModules.map((module) => [module.sortOrder, module]));
+    for (const row of current) {
+      const twin = byOrder.get(row.module.sortOrder);
+      if (!twin || twin.id === row.moduleId) continue;
+      const taken = await tx.traineeModule.findFirst({
+        where: { traineeId: id, moduleId: twin.id, NOT: { id: row.id } },
+      });
+      if (taken) continue;
+      await tx.traineeModule.update({ where: { id: row.id }, data: { moduleId: twin.id } });
+    }
+    const existing = new Set(
+      (await tx.traineeModule.findMany({ where: { traineeId: id }, select: { moduleId: true } })).map((row) => row.moduleId),
+    );
+    const missing = nextModules.filter((module) => !module.archived && !existing.has(module.id));
+    if (missing.length) {
+      await tx.traineeModule.createMany({
+        data: missing.map((module) => ({ traineeId: id, moduleId: module.id })),
+      });
+    }
     await tx.trainee.update({ where: { id }, data: { language } });
   });
 }
@@ -525,7 +600,7 @@ export async function getSchedule(filters: { storeNumber?: string; trainerId?: s
     }),
   ]);
   const sessions: ScheduleSession[] = rows
-    .filter((row) => row.scheduledDate)
+    .filter((row) => row.scheduledDate && rowIsVisible(row.trainee, row.module))
     .map((row) => {
       const language = asLanguage(row.trainee.language);
       const section = asSection(row.module.section);
@@ -578,6 +653,63 @@ export async function getSchedule(filters: { storeNumber?: string; trainerId?: s
         storeName: person.store.name,
       }))
       .sort(compareTrainers),
+  };
+}
+
+export async function getScheduledSessions(filters: {
+  storeNumber?: string;
+  range?: string;
+  from?: string;
+  to?: string;
+}) {
+  const who = await access();
+  const storeNumber = scopedStoreNumber(who, filters.storeNumber);
+  const today = todayIso();
+  const window = sessionWindow(today, filters.range, filters.from, filters.to);
+  const [stores, rows] = await Promise.all([
+    prisma.store.findMany({
+      where: storeNumber ? { number: storeNumber } : undefined,
+      orderBy: { number: "asc" },
+    }),
+    prisma.traineeModule.findMany({
+      where: {
+        scheduledDate: { gte: window.start, lte: window.end },
+        ...(storeNumber ? { trainee: { store: { number: storeNumber } } } : {}),
+      },
+      include: {
+        trainee: { include: { store: true } },
+        module: true,
+      },
+    }),
+  ]);
+  const sessions: ScheduledSessionRow[] = rows
+    .filter((row) => row.scheduledDate && rowIsVisible(row.trainee, row.module))
+    .map((row) => ({
+      id: row.id,
+      date: row.scheduledDate!,
+      traineeId: row.traineeId,
+      traineeName: row.trainee.name,
+      storeNumber: row.trainee.store.number,
+      moduleName: row.module.name,
+      trainerName: row.trainerLabel,
+      completed: row.completed,
+      timeLabel: row.module.timeLabel,
+    }))
+    .sort(
+      (a, b) =>
+        a.date.localeCompare(b.date) ||
+        a.storeNumber.localeCompare(b.storeNumber) ||
+        a.traineeName.localeCompare(b.traineeName) ||
+        a.moduleName.localeCompare(b.moduleName),
+    );
+  return {
+    today,
+    range: window.range,
+    start: window.start,
+    end: window.end,
+    locked: who.role === "store",
+    stores: stores.map((store) => ({ id: store.id, number: store.number, name: store.name })),
+    rows: sessions,
   };
 }
 
@@ -684,6 +816,7 @@ export async function listModules(language: "en" | "es"): Promise<ModuleTemplate
     needsReview: module.needsReview,
     kind: module.kind,
     note: module.note,
+    archived: module.archived,
   }));
 }
 
@@ -722,6 +855,173 @@ export async function updateModuleTemplate(
       needsReview: /regId=/i.test(link),
       kind: moduleKind({ link, videoCount, credit }),
     },
+  });
+}
+
+function catalogSection(value: string): SectionId {
+  if (value === "FOUNDATION" || value === "SERVICE" || value === "PRODUCTION") return value;
+  throw new Error("Choose Foundation, Service, or Production.");
+}
+
+function catalogWrite(language: "en" | "es", section: SectionId, input: {
+  name: string;
+  timeLabel: string;
+  videoCount: string;
+  credit: string;
+  link: string;
+  videoTitles: string;
+  note: string;
+}) {
+  const name = input.name.trim();
+  if (!name) throw new Error(language === "es" ? "Enter the Spanish name." : "Enter the English name.");
+  const videoCount = input.videoCount.trim() === "" ? null : Number(input.videoCount);
+  if (videoCount !== null && (!Number.isInteger(videoCount) || videoCount < 0 || videoCount > 99)) {
+    throw new Error("Video count needs to be a whole number.");
+  }
+  const credit = input.credit === "Auto" || input.credit === "Manual" ? input.credit : null;
+  const link = input.link.trim();
+  return {
+    language,
+    section,
+    sectionLabel: sectionTitle(language, section),
+    name: name.slice(0, 160),
+    timeLabel: input.timeLabel.trim().slice(0, 40),
+    timeMinutes: parseTimeMinutes(input.timeLabel),
+    videoCount,
+    credit,
+    link,
+    videoTitles: input.videoTitles.trim(),
+    note: input.note.trim().slice(0, 400),
+    needsReview: /regId=/i.test(link),
+    kind: moduleKind({ link, videoCount, credit }),
+    archived: false,
+  };
+}
+
+async function shiftSortOrders(tx: Prisma.TransactionClient, language: string, from: number) {
+  const rows = await tx.module.findMany({
+    where: { language, sortOrder: { gte: from } },
+    orderBy: { sortOrder: "desc" },
+  });
+  for (const row of rows) {
+    await tx.module.update({ where: { id: row.id }, data: { sortOrder: row.sortOrder + 100000 } });
+  }
+  for (const row of rows) {
+    await tx.module.update({ where: { id: row.id }, data: { sortOrder: row.sortOrder + 1 } });
+  }
+}
+
+export async function addCatalogModule(input: {
+  section: string;
+  nameEn: string;
+  nameEs: string;
+  timeLabel: string;
+  videoCount: string;
+  credit: string;
+  link: string;
+  videoTitles: string;
+  note: string;
+}) {
+  await requireAdmin();
+  const section = catalogSection(input.section);
+  const english = catalogWrite("en", section, { ...input, name: input.nameEn });
+  const spanish = catalogWrite("es", section, { ...input, name: input.nameEs });
+  return prisma.$transaction(async (tx) => {
+    const inSection = await tx.module.findMany({ where: { language: "en", section } });
+    const insertAt = inSection.length ? Math.max(...inSection.map((row) => row.sortOrder)) + 1 : 1;
+    await shiftSortOrders(tx, "en", insertAt);
+    await shiftSortOrders(tx, "es", insertAt);
+    const en = await tx.module.create({ data: { ...english, sortOrder: insertAt } });
+    const es = await tx.module.create({ data: { ...spanish, sortOrder: insertAt } });
+    for (const created of [en, es]) {
+      const trainees = await tx.trainee.findMany({ where: { language: created.language }, select: { id: true } });
+      if (trainees.length) {
+        await tx.traineeModule.createMany({
+          data: trainees.map((trainee) => ({ traineeId: trainee.id, moduleId: created.id })),
+          skipDuplicates: true,
+        });
+      }
+    }
+    return { enId: en.id, esId: es.id };
+  });
+}
+
+function markedProgress(rows: { completed: boolean; scheduledDate: string | null; completedDate: string | null; trainerId: string | null; trainerLabel: string; notes: string }[]) {
+  return rows.some(
+    (row) => hasProgressMark(row) || Boolean(row.trainerId) || Boolean(row.trainerLabel.trim()) || Boolean(row.notes.trim()),
+  );
+}
+
+export async function removeCatalogModule(id: string) {
+  await requireAdmin();
+  const current = await prisma.module.findUnique({ where: { id }, include: { progress: true } });
+  if (!current) throw new Error("That module is not in the catalog.");
+  const twin = await prisma.module.findFirst({
+    where: {
+      language: current.language === "en" ? "es" : "en",
+      sortOrder: current.sortOrder,
+      section: current.section,
+    },
+    include: { progress: true },
+  });
+  const ids = [current.id, ...(twin ? [twin.id] : [])];
+  const history = markedProgress(current.progress) || (twin ? markedProgress(twin.progress) : false);
+  if (history) {
+    await prisma.module.updateMany({ where: { id: { in: ids } }, data: { archived: true } });
+    return "archived" as const;
+  }
+  await prisma.$transaction(async (tx) => {
+    await tx.traineeModule.deleteMany({ where: { moduleId: { in: ids } } });
+    await tx.module.deleteMany({ where: { id: { in: ids } } });
+  });
+  return "deleted" as const;
+}
+
+export async function restoreCatalogModule(id: string) {
+  await requireAdmin();
+  const current = await prisma.module.findUnique({ where: { id } });
+  if (!current) throw new Error("That module is not in the catalog.");
+  await prisma.module.updateMany({
+    where: { sortOrder: current.sortOrder, section: current.section, language: { in: ["en", "es"] } },
+    data: { archived: false },
+  });
+  const modules = await prisma.module.findMany({
+    where: { sortOrder: current.sortOrder, section: current.section, archived: false },
+  });
+  for (const item of modules) {
+    const trainees = await prisma.trainee.findMany({ where: { language: item.language }, select: { id: true } });
+    if (!trainees.length) continue;
+    await prisma.traineeModule.createMany({
+      data: trainees.map((trainee) => ({ traineeId: trainee.id, moduleId: item.id })),
+      skipDuplicates: true,
+    });
+  }
+}
+
+export async function moveCatalogModule(id: string, direction: "up" | "down") {
+  await requireAdmin();
+  const current = await prisma.module.findUnique({ where: { id } });
+  if (!current || current.archived) throw new Error("That module is not in the catalog.");
+  const siblings = await prisma.module.findMany({
+    where: { language: current.language, section: current.section, archived: false },
+    orderBy: { sortOrder: "asc" },
+  });
+  const index = siblings.findIndex((row) => row.id === current.id);
+  const neighbor = siblings[index + (direction === "up" ? -1 : 1)];
+  if (!neighbor) return;
+  await prisma.$transaction(async (tx) => {
+    for (const language of ["en", "es"]) {
+      const left = await tx.module.findUnique({
+        where: { language_sortOrder: { language, sortOrder: current.sortOrder } },
+      });
+      const right = await tx.module.findUnique({
+        where: { language_sortOrder: { language, sortOrder: neighbor.sortOrder } },
+      });
+      if (!left || !right || left.section !== current.section || right.section !== current.section) continue;
+      await tx.module.update({ where: { id: left.id }, data: { sortOrder: -1_000_000 - current.sortOrder } });
+      await tx.module.update({ where: { id: right.id }, data: { sortOrder: current.sortOrder } });
+      await tx.module.update({ where: { id: left.id }, data: { sortOrder: neighbor.sortOrder } });
+    }
   });
 }
 
@@ -795,7 +1095,7 @@ export async function exportAllCsv() {
 }
 
 export async function exportTemplateCsv(language: "en" | "es") {
-  const modules = await listModules(language);
+  const modules = (await listModules(language)).filter((module) => !module.archived);
   const rows = [
     ITS_HEADER,
     ...modules.map((module) =>
@@ -1182,7 +1482,7 @@ export async function commitImport(csv: string, single: SingleContext | null) {
         let trainee =
           inStore.find((item) => normalizeLabel(item.name) === normalizeLabel(first.traineeName)) ?? null;
         if (!trainee) {
-          const modules = await tx.module.findMany({ where: { language: first.language } });
+          const modules = await tx.module.findMany({ where: { language: first.language, archived: false } });
           trainee = await tx.trainee.create({
             data: {
               storeId: first.storeId,
@@ -1219,8 +1519,19 @@ export async function commitImport(csv: string, single: SingleContext | null) {
             },
           });
         }
-        const rows = await tx.traineeModule.findMany({ where: { traineeId: trainee.id } });
-        const allDone = rows.length > 0 && rows.every((row) => row.completed);
+        const rows = await tx.traineeModule.findMany({
+          where: { traineeId: trainee.id },
+          include: { module: true },
+        });
+        let path = traineePath(trainee);
+        if (!path) {
+          const serviceRows = rows.filter((row) => row.module.section === "SERVICE" && hasProgressMark(row)).length;
+          const productionRows = rows.filter((row) => row.module.section === "PRODUCTION" && hasProgressMark(row)).length;
+          path = inferPathChoice(serviceRows, productionRows);
+          if (path) await tx.trainee.update({ where: { id: trainee.id }, data: { path } });
+        }
+        const visible = rows.filter((row) => rowIsVisible({ ...trainee, path }, row.module));
+        const allDone = Boolean(path) && visible.length > 0 && visible.every((row) => row.completed);
         const requested = group.find((plan) => plan.status)?.status;
         let status = trainee.status;
         if (allDone) status = "COMPLETED";

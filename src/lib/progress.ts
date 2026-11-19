@@ -1,6 +1,8 @@
 import { STALL_DAYS, type SectionId } from "./constants";
 import { addDays } from "./format";
 
+export type TrainingPath = "SERVICE" | "PRODUCTION";
+
 export type ModuleSnap = {
   sortOrder: number;
   section: SectionId;
@@ -10,6 +12,7 @@ export type ModuleSnap = {
   completedDate: string | null;
   scheduledDate: string | null;
   trainerLabel: string;
+  archived?: boolean;
 };
 
 export type SectionProgress = {
@@ -44,11 +47,49 @@ export type ProgressSummary = {
   minutesTotal: number;
 };
 
+export function parseTrainingPath(value: string | null | undefined): TrainingPath | null {
+  if (value === "SERVICE" || value === "PRODUCTION") return value;
+  return null;
+}
+
+export function onTrainingPath(
+  section: SectionId,
+  path: TrainingPath | null,
+  archived = false,
+): boolean {
+  if (archived) return false;
+  if (section === "FOUNDATION") return true;
+  return section === path;
+}
+
+export function inferPathChoice(serviceRows: number, productionRows: number): TrainingPath | null {
+  if (serviceRows > productionRows) return "SERVICE";
+  if (productionRows > serviceRows) return "PRODUCTION";
+  return null;
+}
+
+export function hasProgressMark(row: {
+  completed: boolean;
+  scheduledDate: string | null;
+  completedDate: string | null;
+}): boolean {
+  return row.completed || Boolean(row.scheduledDate) || Boolean(row.completedDate);
+}
+
 export function summarize(
   modules: ModuleSnap[],
-  input: { startDate: string; status: string; today: string },
+  input: { startDate: string; status: string; today: string; path?: TrainingPath | null },
 ): ProgressSummary {
-  const ordered = [...modules].sort((a, b) => a.sortOrder - b.sortOrder);
+  const path = input.path === undefined ? null : input.path;
+  const ordered = modules
+    .filter((module) => onTrainingPath(module.section, path, module.archived))
+    .sort((a, b) => a.sortOrder - b.sortOrder);
+  const visibleSections: SectionId[] =
+    path === "SERVICE"
+      ? ["FOUNDATION", "SERVICE"]
+      : path === "PRODUCTION"
+        ? ["FOUNDATION", "PRODUCTION"]
+        : ["FOUNDATION"];
   const total = ordered.length;
   const completed = ordered.filter((module) => module.completed).length;
   const percent = total === 0 ? 0 : Math.round((completed / total) * 100);
@@ -81,7 +122,7 @@ export function summarize(
     (lastCompletedDate === null || lastCompletedDate <= stallCutoff) &&
     !next;
 
-  const sections = (["FOUNDATION", "SERVICE", "PRODUCTION"] as const).map((section) => {
+  const sections = visibleSections.map((section) => {
     const rows = ordered.filter((module) => module.section === section);
     return {
       section,

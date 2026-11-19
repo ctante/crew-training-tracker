@@ -14,7 +14,7 @@ export default async function PathPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const language = one((await searchParams).lang) === "es" ? "es" : "en";
-  const modules = await listModules(language);
+  const modules = (await listModules(language)).filter((module) => !module.archived);
   const review = modules.filter((module) => module.needsReview);
 
   return (
@@ -22,7 +22,7 @@ export default async function PathPage({
       <PageHeader
         kicker="One central copy"
         title={language === "es" ? "Ruta en español" : "English training path"}
-        description="36 modules in the ITS sheet order. Editing a link here updates every trainee. The old workbooks copied the link onto every tab."
+        description="Catalog order for Foundation, Service, and Production. A trainee schedule shows Foundation plus the path they chose."
         actions={
           <Link href={`/admin/modules?lang=${language}`} className="inline-flex min-h-11 items-center rounded-full bg-brick px-4 text-sm font-semibold text-white">
             Edit modules

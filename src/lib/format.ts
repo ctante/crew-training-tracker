@@ -41,6 +41,67 @@ export function currentMonthKey(): string {
   return todayIso().slice(0, 7);
 }
 
+export const SESSION_RANGES = [
+  "today",
+  "yesterday",
+  "tomorrow",
+  "this-week",
+  "last-week",
+  "next-week",
+  "this-month",
+  "custom",
+] as const;
+
+export type SessionRange = (typeof SESSION_RANGES)[number];
+
+function mondayOf(iso: string): string {
+  const [year, month, day] = iso.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  const weekday = date.getUTCDay();
+  const fromMonday = weekday === 0 ? 6 : weekday - 1;
+  return addDays(iso, -fromMonday);
+}
+
+export function monthBounds(iso: string): { start: string; end: string } {
+  const [year, month] = iso.split("-").map(Number);
+  const start = `${year}-${String(month).padStart(2, "0")}-01`;
+  const last = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  const end = `${year}-${String(month).padStart(2, "0")}-${String(last).padStart(2, "0")}`;
+  return { start, end };
+}
+
+export function sessionWindow(
+  today: string,
+  range: string | undefined,
+  from?: string,
+  to?: string,
+): { range: SessionRange; start: string; end: string } {
+  const key: SessionRange = SESSION_RANGES.includes(range as SessionRange) ? (range as SessionRange) : "today";
+  if (key === "yesterday") {
+    const day = addDays(today, -1);
+    return { range: key, start: day, end: day };
+  }
+  if (key === "tomorrow") {
+    const day = addDays(today, 1);
+    return { range: key, start: day, end: day };
+  }
+  if (key === "this-week" || key === "last-week" || key === "next-week") {
+    const offset = key === "last-week" ? -7 : key === "next-week" ? 7 : 0;
+    const start = addDays(mondayOf(today), offset);
+    return { range: key, start, end: addDays(start, 6) };
+  }
+  if (key === "this-month") {
+    const bounds = monthBounds(today);
+    return { range: key, ...bounds };
+  }
+  if (key === "custom") {
+    const start = /^\d{4}-\d{2}-\d{2}$/.test(from ?? "") ? from! : today;
+    const end = /^\d{4}-\d{2}-\d{2}$/.test(to ?? "") ? to! : start;
+    return start <= end ? { range: key, start, end } : { range: key, start: end, end: start };
+  }
+  return { range: "today", start: today, end: today };
+}
+
 export function monthGrid(monthKey: string): Array<string | null> {
   const [year, month] = monthKey.split("-").map(Number);
   const first = new Date(Date.UTC(year, month - 1, 1));

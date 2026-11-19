@@ -1,8 +1,8 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { saveModuleAction } from "@/app/actions";
-import { Flag, fieldClass, primaryButton } from "@/components/ui";
+import { moveModuleAction, removeModuleAction, restoreModuleAction, saveModuleAction } from "@/app/actions";
+import { Flag, fieldClass, ghostButton, primaryButton } from "@/components/ui";
 import { splitTitles } from "@/lib/format";
 import type { ModuleTemplate } from "@/lib/types";
 
@@ -17,7 +17,9 @@ export function ModuleEditor({ modules }: { modules: ModuleTemplate[] }) {
         module.sectionTitle.toLowerCase().includes(needle),
     );
   }, [modules, query]);
-  const review = modules.filter((module) => module.needsReview).length;
+  const review = modules.filter((module) => module.needsReview && !module.archived).length;
+  const active = shown.filter((module) => !module.archived);
+  const archived = shown.filter((module) => module.archived);
 
   return (
     <div>
@@ -36,15 +38,41 @@ export function ModuleEditor({ modules }: { modules: ModuleTemplate[] }) {
         </p>
       </div>
       <div className="space-y-3">
-        {shown.map((module) => (
-          <ModuleForm key={module.id} module={module} />
-        ))}
+        {active.map((module) => {
+          const section = active.filter((item) => item.section === module.section);
+          const index = section.findIndex((item) => item.id === module.id);
+          return (
+            <ModuleForm
+              key={module.id}
+              module={module}
+              canUp={index > 0}
+              canDown={index >= 0 && index < section.length - 1}
+            />
+          );
+        })}
       </div>
+      {archived.length > 0 ? (
+        <div className="mt-8 space-y-3">
+          <h2 className="font-display text-2xl">Archived</h2>
+          <p className="text-sm text-ink/60">Hidden from schedules. Progress already recorded stays in the database.</p>
+          {archived.map((module) => (
+            <ModuleForm key={module.id} module={module} canUp={false} canDown={false} />
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
 
-function ModuleForm({ module }: { module: ModuleTemplate }) {
+function ModuleForm({
+  module,
+  canUp,
+  canDown,
+}: {
+  module: ModuleTemplate;
+  canUp: boolean;
+  canDown: boolean;
+}) {
   const [name, setName] = useState(module.name);
   const [timeLabel, setTimeLabel] = useState(module.timeLabel);
   const [videoCount, setVideoCount] = useState(module.videoCount === null ? "" : String(module.videoCount));
@@ -84,6 +112,37 @@ function ModuleForm({ module }: { module: ModuleTemplate }) {
           {module.sectionTitle}
         </Flag>
         {needsReview ? <Flag kind="review">Needs review</Flag> : null}
+        {module.archived ? <Flag kind="paused">Archived</Flag> : null}
+        {module.archived ? null : (
+          <span className="ml-auto flex gap-2">
+            <button
+              className={ghostButton}
+              type="button"
+              disabled={!canUp || pending}
+              onClick={() =>
+                startTransition(async () => {
+                  const result = await moveModuleAction(module.id, "up");
+                  setStatus(result.ok ? "Moved up" : result.error);
+                })
+              }
+            >
+              Up
+            </button>
+            <button
+              className={ghostButton}
+              type="button"
+              disabled={!canDown || pending}
+              onClick={() =>
+                startTransition(async () => {
+                  const result = await moveModuleAction(module.id, "down");
+                  setStatus(result.ok ? "Moved down" : result.error);
+                })
+              }
+            >
+              Down
+            </button>
+          </span>
+        )}
       </div>
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <label className="text-sm font-semibold sm:col-span-2">
@@ -131,10 +190,40 @@ function ModuleForm({ module }: { module: ModuleTemplate }) {
       {titles.length > 0 ? (
         <p className="mt-2 text-xs text-ink/55">{titles.length} titles parsed from the list.</p>
       ) : null}
-      <div className="mt-3 flex items-center gap-3">
+      <div className="mt-3 flex flex-wrap items-center gap-3">
         <button className={primaryButton} disabled={pending} type="submit">
           Save module
         </button>
+        {module.archived ? (
+          <button
+            className={ghostButton}
+            type="button"
+            disabled={pending}
+            onClick={() =>
+              startTransition(async () => {
+                const result = await restoreModuleAction(module.id);
+                setStatus(result.ok ? "Restored" : result.error);
+              })
+            }
+          >
+            Restore
+          </button>
+        ) : (
+          <button
+            className={ghostButton}
+            type="button"
+            disabled={pending}
+            onClick={() =>
+              startTransition(async () => {
+                const result = await removeModuleAction(module.id);
+                if (!result.ok) setStatus(result.error);
+                else setStatus(result.outcome === "archived" ? "Archived. History kept." : "Removed.");
+              })
+            }
+          >
+            Remove
+          </button>
+        )}
         <p className="text-sm text-ink/60" aria-live="polite">
           {status}
         </p>
