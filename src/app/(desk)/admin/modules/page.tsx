@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { addModuleAction } from "@/app/actions";
+import { AdminNav } from "@/components/admin-nav";
 import { ModuleEditor } from "@/components/module-editor";
 import { Flash, PageHeader, fieldClass, primaryButton } from "@/components/ui";
 import { listModules } from "@/lib/data";
@@ -22,6 +23,7 @@ export default async function ModulesAdminPage({
     saved === "added" ? "Module added to Foundation, Service, or Production for every trainee in that section." : "";
   return (
     <div>
+      <AdminNav current="/admin/modules" />
       <PageHeader
         kicker="Central path"
         title="Modules"

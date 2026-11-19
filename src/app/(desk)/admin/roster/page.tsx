@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AdminNav } from "@/components/admin-nav";
 import { RosterImport } from "@/components/roster-import";
 import { PageHeader, ghostButton } from "@/components/ui";
 import { TRAINER_POSITION_ORDER, groupByTrainerPosition } from "@/lib/constants";
@@ -14,6 +15,7 @@ export default async function RosterPage() {
 
   return (
     <div>
+      <AdminNav current="/admin/roster" />
       <PageHeader
         kicker="Development Report"
         title="Qualified trainers"

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AdminNav } from "@/components/admin-nav";
 import { ImportPanel } from "@/components/import-panel";
 import { PageHeader, ghostButton } from "@/components/ui";
 import { listStoreChoices } from "@/lib/data";
@@ -11,6 +12,7 @@ export default async function ImportPage() {
   const stores = await listStoreChoices();
   return (
     <div>
+      <AdminNav current="/admin/import" />
       <PageHeader
         kicker="Sheets"
         title="Import and export"

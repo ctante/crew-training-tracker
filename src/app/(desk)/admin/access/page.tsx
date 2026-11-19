@@ -1,4 +1,5 @@
 import { setStorePasswordAction } from "@/app/actions";
+import { AdminNav } from "@/components/admin-nav";
 import { Flash, PageHeader, fieldClass, primaryButton } from "@/components/ui";
 import { listStoreAccess } from "@/lib/data";
 import { one } from "@/lib/format";
@@ -17,6 +18,7 @@ export default async function StoreAccessPage({
 
   return (
     <div>
+      <AdminNav current="/admin/access" />
       <PageHeader
         kicker="Admin"
         title="Store passwords"

@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { Suspense } from "react";
+import { FilterSelect } from "@/components/filter-select";
 import { TraineeSearch } from "@/components/trainee-search";
 import { Flag, PageHeader } from "@/components/ui";
 import { groupByTrainerPosition } from "@/lib/constants";
 import { getSchedule } from "@/lib/data";
-import { formatMonth, formatShortDate, monthGrid, one, shiftMonth, storeLabel, withParams } from "@/lib/format";
+import { formatMonth, formatShortDate, monthGrid, one, sessionWindow, shiftMonth, storeLabel, withParams } from "@/lib/format";
+import { sessionSurface } from "@/lib/session-tone";
 import type { ScheduleSession } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -24,22 +26,33 @@ export default async function SchedulePage({
   const selected = one(params.date);
   const tab = one(params.tab) || "scheduled";
   const query = one(params.q);
+  const range = one(params.range) || "today";
   const data = await getSchedule({
     storeNumber,
     trainerId,
     month: one(params.month),
     query,
   });
-  const current = { store: storeNumber, trainer: trainerId, month: data.month, date: selected, tab, q: query };
+  const window = sessionWindow(data.today, range, one(params.from), one(params.to));
+  const inWindow = (date: string) => date >= window.start && date <= window.end;
+  const current = {
+    store: storeNumber,
+    trainer: trainerId,
+    month: data.month,
+    date: selected,
+    tab,
+    q: query,
+    range: window.range,
+    from: window.range === "custom" ? window.start : "",
+    to: window.range === "custom" ? window.end : "",
+  };
   const monthSessions = data.sessions.filter((session) => session.date.startsWith(data.month));
   const overdue = data.sessions.filter((session) => session.overdue);
-  const upcoming = monthSessions.filter((session) => session.date >= data.today);
+  const upcoming = data.sessions.filter((session) => inWindow(session.date));
+  const doneInRange = data.done.filter((session) => inWindow(session.date));
   const counts = new Map<string, number>();
   for (const session of monthSessions) counts.set(session.date, (counts.get(session.date) ?? 0) + 1);
   const cells = monthGrid(data.month);
-  const focus = selected && selected.startsWith(data.month) ? upcoming.filter((session) => session.date === selected).concat(
-    monthSessions.filter((session) => session.date === selected && session.overdue),
-  ) : null;
   const store = data.locked ? data.stores[0] : data.stores.find((item) => item.number === storeNumber);
 
   return (
@@ -60,46 +73,85 @@ export default async function SchedulePage({
         </Suspense>
       </div>
 
-      {data.locked ? null : (
-      <div className="flex gap-2 overflow-x-auto pb-2">
-          <Filter href={withParams("/schedule", current, { store: null, trainer: null })} active={!storeNumber}>
-            All
-          </Filter>
-        {data.stores.map((item) => (
-          <Filter
-            key={item.number}
-            href={withParams("/schedule", current, { store: item.number, trainer: null })}
-            active={storeNumber === item.number}
-          >
-            {storeLabel(item.number)}
-          </Filter>
-        ))}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <FilterSelect
+          label="Dates"
+          name="range"
+          value={window.range}
+          basePath="/schedule"
+          query={current}
+          clear={["date"]}
+          options={[
+            { value: "today", label: "Today" },
+            { value: "yesterday", label: "Yesterday" },
+            { value: "tomorrow", label: "Tomorrow" },
+            { value: "this-week", label: "This week" },
+            { value: "last-week", label: "Last week" },
+            { value: "next-week", label: "Next week" },
+            { value: "this-month", label: "This month" },
+            { value: "custom", label: "Custom" },
+          ]}
+        />
+        {data.locked ? null : (
+          <FilterSelect
+            label="Restaurant"
+            name="store"
+            value={storeNumber}
+            basePath="/schedule"
+            query={current}
+            clear={["trainer"]}
+            options={[{ value: "", label: "All restaurants" }, ...data.stores.map((item) => ({ value: item.number, label: storeLabel(item.number) }))]}
+          />
+        )}
+        <FilterSelect
+          label="Trainer"
+          name="trainer"
+          value={trainerId}
+          basePath="/schedule"
+          query={current}
+          options={[
+            { value: "", label: "All qualified trainers" },
+            ...groupByTrainerPosition(data.trainers).flatMap((group) =>
+              group.people.map((trainer) => ({
+                value: trainer.id,
+                label: `${group.position} · ${storeNumber ? trainer.name : `${trainer.storeNumber} · ${trainer.name}`}`,
+              })),
+            ),
+          ]}
+        />
+        <FilterSelect
+          label="List"
+          name="tab"
+          value={tab === "overdue" || tab === "done" ? tab : "scheduled"}
+          basePath="/schedule"
+          query={current}
+          options={[
+            { value: "scheduled", label: `Scheduled ${upcoming.length}` },
+            { value: "overdue", label: `Overdue ${overdue.length}` },
+            { value: "done", label: `Done ${doneInRange.length}` },
+          ]}
+        />
       </div>
-      )}
-
-      <form className="mt-3 flex flex-wrap items-end gap-3" action="/schedule">
-        {storeNumber ? <input type="hidden" name="store" value={storeNumber} /> : null}
-        <input type="hidden" name="month" value={data.month} />
-        <label className="text-sm font-semibold">
-          Trainer
-          <select className="mt-1 min-h-11 max-w-full rounded-full border border-line bg-card px-3 text-sm" name="trainer" defaultValue={trainerId}>
-            <option value="">All qualified trainers</option>
-            {groupByTrainerPosition(data.trainers).map((group) => (
-              <optgroup key={group.position} label={group.position}>
-                {group.people.map((trainer) => (
-                  <option key={trainer.id} value={trainer.id}>
-                    {storeNumber ? trainer.name : `${trainer.storeNumber} · ${trainer.name}`}
-                    {trainer.isGm ? " · GM" : ""}
-                  </option>
-                ))}
-              </optgroup>
-            ))}
-          </select>
-        </label>
-        <button className="min-h-11 rounded-full bg-bark px-4 text-sm font-semibold text-white" type="submit">
-          Apply
-        </button>
-      </form>
+      {window.range === "custom" ? (
+        <form action="/schedule" className="mt-3 flex flex-wrap items-end gap-2">
+          {storeNumber ? <input type="hidden" name="store" value={storeNumber} /> : null}
+          {trainerId ? <input type="hidden" name="trainer" value={trainerId} /> : null}
+          {query ? <input type="hidden" name="q" value={query} /> : null}
+          <input type="hidden" name="tab" value={tab} />
+          <input type="hidden" name="range" value="custom" />
+          <label className="text-sm font-semibold">
+            From
+            <input className="mt-1 block min-h-11 rounded-2xl border border-line bg-white px-3" type="date" name="from" defaultValue={window.start} required />
+          </label>
+          <label className="text-sm font-semibold">
+            To
+            <input className="mt-1 block min-h-11 rounded-2xl border border-line bg-white px-3" type="date" name="to" defaultValue={window.end} required />
+          </label>
+          <button className="min-h-11 rounded-full bg-bark px-4 text-sm font-semibold text-white" type="submit">
+            Apply
+          </button>
+        </form>
+      ) : null}
 
       <div className="mt-5 flex items-center justify-between">
         <h2 className="font-display text-3xl">{formatMonth(data.month)}</h2>
@@ -128,10 +180,10 @@ export default async function SchedulePage({
           return (
             <Link
               key={iso}
-              href={withParams("/schedule", current, { date: iso })}
+              href={withParams("/schedule", current, { date: iso, range: "custom", from: iso, to: iso })}
               className={`flex min-h-14 flex-col items-center justify-center rounded-2xl border text-sm ${
-                isSelected ? "border-bark bg-bark text-white" : dayOverdue ? "border-brick/40 bg-red-50" : "border-line bg-card"
-              } ${isToday && !isSelected ? "ring-2 ring-sun" : ""}`}
+                isSelected ? "border-bark bg-bark text-white" : isToday ? "border-green-300 bg-green-100" : dayOverdue ? "border-red-300 bg-red-100" : "border-line bg-card"
+              }`}
             >
               <span className="font-semibold">{Number(iso.slice(-2))}</span>
               {count > 0 ? <span className={`text-[11px] ${isSelected ? "text-sun" : "text-ink/60"}`}>{count}</span> : null}
@@ -141,26 +193,20 @@ export default async function SchedulePage({
       </div>
 
       <section className="mt-6">
-        <div className="flex flex-wrap gap-2">
-          <Filter href={withParams("/schedule", current, { tab: null })} active={tab !== "overdue" && tab !== "done"}>
-            Scheduled {upcoming.length}
-          </Filter>
-          <Filter href={withParams("/schedule", current, { tab: "overdue" })} active={tab === "overdue"}>
-            Overdue {overdue.length}
-          </Filter>
-          <Filter href={withParams("/schedule", current, { tab: "done" })} active={tab === "done"}>
-            Done {data.done.length}
-          </Filter>
-        </div>
         {tab === "overdue" ? (
-          <p className="mt-3 text-sm text-ink/60">Dated before today and not done. The month calendar does not limit this list.</p>
-        ) : null}
+          <p className="text-sm text-ink/60">Dated before today and not done. The date menu does not change this list.</p>
+        ) : (
+          <p className="text-sm text-ink/60">
+            {formatShortDate(window.start)}
+            {window.start === window.end ? "" : ` – ${formatShortDate(window.end)}`} · Eastern Time
+          </p>
+        )}
         <h2 className="mt-4 font-display text-2xl">
-          {tab === "overdue" ? "Overdue" : tab === "done" ? "Done this month" : selected ? formatShortDate(selected) : "Coming up this month"}
+          {tab === "overdue" ? "Overdue" : tab === "done" ? "Done" : "Scheduled"}
         </h2>
         <TraineeGroups
-          sessions={tab === "overdue" ? overdue : tab === "done" ? data.done : focus ?? upcoming}
-          empty={tab === "overdue" ? "No overdue sessions." : tab === "done" ? "No completed sessions this month." : "No open sessions on this view. Set a training date from a trainee page."}
+          sessions={tab === "overdue" ? overdue : tab === "done" ? doneInRange : upcoming}
+          empty={tab === "overdue" ? "No overdue sessions." : tab === "done" ? "No completed sessions in these dates." : "No open sessions in these dates."}
         />
       </section>
     </div>
@@ -193,24 +239,11 @@ function TraineeGroups({ sessions, empty }: { sessions: ScheduleSession[]; empty
   );
 }
 
-function Filter({ href, active, children }: { href: string; active: boolean; children: React.ReactNode }) {
-  return (
-    <Link
-      href={href}
-      className={`inline-flex min-h-10 shrink-0 items-center rounded-full border px-3 text-sm font-semibold ${
-        active ? "border-bark bg-bark text-white" : "border-line bg-card"
-      }`}
-    >
-      {children}
-    </Link>
-  );
-}
-
 function SessionCard({ session }: { session: ScheduleSession }) {
   return (
     <Link
       href={`/trainees/${session.traineeId}#module-${session.sortOrder}`}
-      className={`block rounded-3xl border bg-card px-4 py-3 shadow-sm ${session.overdue ? "border-brick/40" : session.dueToday ? "border-sun" : "border-line"}`}
+      className={`block rounded-3xl border px-4 py-3 shadow-sm ${sessionSurface({ overdue: session.overdue, dueToday: session.dueToday })}`}
     >
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>

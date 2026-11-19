@@ -687,7 +687,7 @@ export async function getSchedule(filters: { storeNumber?: string; trainerId?: s
     prisma.traineeModule.findMany({
       where: {
         completed: true,
-        scheduledDate: { startsWith: month },
+        scheduledDate: { not: null },
         trainee: storeNumber ? { store: { number: storeNumber } } : undefined,
         ...(filters.trainerId ? { trainerId: filters.trainerId } : {}),
       },

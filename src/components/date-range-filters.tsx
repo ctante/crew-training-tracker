@@ -1,4 +1,5 @@
-import { formatShortDate, withParams } from "@/lib/format";
+import { FilterSelect } from "@/components/filter-select";
+import { formatShortDate } from "@/lib/format";
 
 const CHOICES = [
   ["today", "Today"],
@@ -31,24 +32,15 @@ export function DateRangeFilters({
   const choices = includeAll ? ([["all", "All dates"], ...CHOICES] as const) : CHOICES;
   const hidden = { ...query, ...preserve };
   return (
-    <div>
-      <div className="flex flex-wrap gap-2">
-        {choices.map(([value, label]) => (
-          <a
-            key={value}
-            href={withParams(path, query, {
-              range: value,
-              from: value === "custom" ? start : null,
-              to: value === "custom" ? end : null,
-            })}
-            className={`inline-flex min-h-10 items-center rounded-full border px-3 text-sm font-semibold ${
-              range === value ? "border-bark bg-bark text-white" : "border-line bg-card text-ink"
-            }`}
-          >
-            {label}
-          </a>
-        ))}
-      </div>
+    <div className="max-w-xs">
+      <FilterSelect
+        label="Dates"
+        name="range"
+        value={range}
+        basePath={path}
+        query={query}
+        options={choices.map(([value, label]) => ({ value, label }))}
+      />
       {range === "custom" ? (
         <form action={path} className="mt-3 flex flex-wrap items-end gap-2">
           {Object.entries(hidden)
@@ -59,11 +51,11 @@ export function DateRangeFilters({
           <input type="hidden" name="range" value="custom" />
           <label className="text-sm font-semibold">
             From
-            <input className="mt-1 block min-h-11 rounded-2xl border border-line bg-card px-3" type="date" name="from" defaultValue={start} required />
+            <input className="mt-1 block min-h-11 rounded-2xl border border-line bg-white px-3" type="date" name="from" defaultValue={start} required />
           </label>
           <label className="text-sm font-semibold">
             To
-            <input className="mt-1 block min-h-11 rounded-2xl border border-line bg-card px-3" type="date" name="to" defaultValue={end} required />
+            <input className="mt-1 block min-h-11 rounded-2xl border border-line bg-white px-3" type="date" name="to" defaultValue={end} required />
           </label>
           <button className="min-h-11 rounded-full bg-bark px-4 text-sm font-semibold text-white" type="submit">
             Apply
