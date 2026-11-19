@@ -76,7 +76,7 @@ export function ImportPanel({
             <select className={`${fieldClass} mt-1`} value={storeNumber} onChange={(event) => setStoreNumber(event.target.value)}>
               {stores.map((store) => (
                 <option key={store.id} value={store.number}>
-                  {store.number} {store.name}
+                  {store.number}
                 </option>
               ))}
             </select>

@@ -61,7 +61,7 @@ export default async function HomePage({
             href={withParams("/", current, { store: store.number })}
             active={storeNumber === store.number}
           >
-            {storeLabel(store.number, store.name)}
+            {storeLabel(store.number)}
             <span className="ml-1 text-ink/50">{store.activeTrainees}</span>
           </Chip>
         ))}
@@ -170,7 +170,7 @@ function TraineeRow({ row }: { row: TraineeSummary }) {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.12em] text-ink/45">
-            {storeLabel(row.storeNumber, row.storeName)}
+            {storeLabel(row.storeNumber)}
             {row.position ? ` · ${row.position}` : ""} · {languageName(row.language)}
           </p>
           <h2 className="text-xl font-semibold">{row.name}</h2>

@@ -29,12 +29,6 @@ export const CAMPUS_HOME = "https://fredatmcd.read.inkling.com/read/";
 
 export const STALL_DAYS = 14;
 
-export const SEEDED_NAMES: Record<string, string> = {
-  "05207": "Nursery",
-  "07276": "Kenwood",
-  "11237": "Emmorton",
-};
-
 // Change this list to reorder every trainer dropdown and roster.
 export const TRAINER_POSITION_ORDER = [
   "Crew Trainer",

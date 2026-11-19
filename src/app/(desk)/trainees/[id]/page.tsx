@@ -34,7 +34,7 @@ export default async function TraineePage({
   return (
     <div>
       <PageHeader
-        kicker={storeLabel(trainee.storeNumber, trainee.storeName)}
+        kicker={storeLabel(trainee.storeNumber)}
         title={trainee.name}
         description={`${languageName(trainee.language)} path${trainee.position ? ` · ${trainee.position}` : ""} · started ${trainee.startDate}`}
         actions={
@@ -108,7 +108,7 @@ export default async function TraineePage({
             <select className={`${fieldClass} mt-1`} name="storeId" defaultValue={trainee.storeId}>
               {trainee.stores.map((store) => (
                 <option key={store.id} value={store.id}>
-                  {store.number} {store.name}
+                  {store.number}
                 </option>
               ))}
             </select>

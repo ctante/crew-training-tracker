@@ -130,8 +130,8 @@ export function normalizeStoreNumber(input: string): string {
   return digits.padStart(5, "0");
 }
 
-export function storeLabel(number: string, name: string): string {
-  return name.trim() ? `${number} ${name.trim()}` : number;
+export function storeLabel(number: string): string {
+  return number;
 }
 
 export function parseCompletedFlag(value: string): boolean {

@@ -19,9 +19,9 @@ export type SampleProfile = {
 };
 
 export const SAMPLE_STORES: { number: string; name: string }[] = [
-  { number: "05207", name: "Nursery" },
-  { number: "07276", name: "Kenwood" },
-  { number: "11237", name: "Emmorton" },
+  { number: "05207", name: "" },
+  { number: "07276", name: "" },
+  { number: "11237", name: "" },
   { number: "11350", name: "" },
   { number: "12956", name: "" },
   { number: "12958", name: "" },

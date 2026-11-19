@@ -42,7 +42,7 @@ export default async function SchedulePage({
     <div>
       <PageHeader
         kicker="Agenda"
-        title={store ? storeLabel(store.number, store.name) : "All restaurants"}
+        title={store ? storeLabel(store.number) : "All restaurants"}
         description={
           store
             ? `GM ${store.gmNames.join(", ") || "not listed"}. Sessions are a date and a trainer, the same way the ITS sheet records them.`
@@ -60,7 +60,7 @@ export default async function SchedulePage({
             href={withParams("/schedule", current, { store: item.number, trainer: null })}
             active={storeNumber === item.number}
           >
-            {storeLabel(item.number, item.name)}
+            {storeLabel(item.number)}
           </Filter>
         ))}
       </div>
@@ -192,7 +192,7 @@ function SessionCard({ session }: { session: ScheduleSession }) {
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.12em] text-ink/45">
-            {storeLabel(session.storeNumber, session.storeName)} · {session.sectionTitle}
+            {storeLabel(session.storeNumber)} · {session.sectionTitle}
             {session.timeLabel ? ` · ${session.timeLabel}` : ""}
           </p>
           <p className="font-semibold">{session.traineeName}</p>
