@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { saveProgressAction } from "@/app/actions";
 import { Flag, fieldClass } from "@/components/ui";
 import { groupByTrainerPosition } from "@/lib/constants";
+import { sessionSurface } from "@/lib/session-tone";
 import { formatShortDate } from "@/lib/format";
 import type { EditorModule, TrainerOption } from "@/lib/types";
 
@@ -95,9 +96,7 @@ function ModuleCard({
   return (
     <article
       id={`module-${module.sortOrder}`}
-      className={`scroll-mt-24 rounded-3xl border bg-card p-4 shadow-sm ${
-        overdue ? "border-brick/50" : dueToday ? "border-sun" : "border-line"
-      } ${state.completed ? "opacity-80" : ""}`}
+      className={`scroll-mt-24 rounded-3xl border p-4 shadow-sm ${sessionSurface({ overdue: Boolean(overdue), dueToday: Boolean(dueToday) })}`}
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>

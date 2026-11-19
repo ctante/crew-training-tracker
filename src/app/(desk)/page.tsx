@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import { DateRangeFilters } from "@/components/date-range-filters";
+import { FilterSelect } from "@/components/filter-select";
 import { TraineeSearch } from "@/components/trainee-search";
 import { Flag, PageHeader, ProgressBar } from "@/components/ui";
 import { languageName, SECTION_TITLES } from "@/lib/constants";
 import { getDashboard, getScheduledSessions } from "@/lib/data";
 import { formatMinutes, formatShortDate, one, storeLabel, withParams } from "@/lib/format";
+import { sessionSurface } from "@/lib/session-tone";
 import type { ScheduledSessionRow } from "@/lib/types";
 import type { TraineeSummary } from "@/lib/types";
 
@@ -208,36 +210,31 @@ function SessionsPanel({
   ] as const;
   return (
     <>
-      <div className="flex gap-2 overflow-x-auto pb-1">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {sessions.locked ? null : (
-          <Chip href={withParams("/", sessionQuery, { store: null })} active={!storeNumber}>
-            All restaurants
-          </Chip>
+          <FilterSelect
+            label="Restaurant"
+            name="store"
+            value={storeNumber}
+            basePath="/"
+            query={sessionQuery}
+            options={[{ value: "", label: "All restaurants" }, ...sessions.stores.map((store) => ({ value: store.number, label: storeLabel(store.number) }))]}
+          />
         )}
-        {sessions.stores.map((store) => (
-          <Chip
-            key={store.number}
-            href={withParams("/", sessionQuery, { store: store.number })}
-            active={storeNumber === store.number}
-          >
-            {storeLabel(store.number)}
-          </Chip>
-        ))}
+        <DateRangeFilters path="/" query={sessionQuery} range={sessions.range} start={sessions.start} end={sessions.end} />
+        <FilterSelect
+          label="List"
+          name="tab"
+          value={mode}
+          basePath="/"
+          query={sessionQuery}
+          options={tabs.map(([value, label]) => ({ value, label }))}
+        />
       </div>
       <div className="mt-3 max-w-xs">
         <Suspense fallback={null}>
           <TraineeSearch />
         </Suspense>
-      </div>
-      <div className="mt-3">
-        <DateRangeFilters path="/" query={sessionQuery} range={sessions.range} start={sessions.start} end={sessions.end} />
-      </div>
-      <div className="mt-3 flex flex-wrap gap-2">
-        {tabs.map(([value, label]) => (
-          <Chip key={value} href={withParams("/", sessionQuery, { tab: value === "scheduled" ? null : value })} active={mode === value}>
-            {label}
-          </Chip>
-        ))}
       </div>
       {mode === "overdue" ? (
         <p className="mt-3 text-sm text-ink/60">Dated before today and not done. The date range above does not change this list.</p>
@@ -252,7 +249,7 @@ function SessionsPanel({
             No sessions in this list.
           </p>
         ) : (
-          groups.map((group) => <TraineeSessions key={group.traineeId} group={group} />)
+          groups.map((group) => <TraineeSessions key={group.traineeId} group={group} today={sessions.today} />)
         )}
       </div>
     </>
@@ -282,8 +279,10 @@ function groupByTrainee(rows: ScheduledSessionRow[]) {
 
 function TraineeSessions({
   group,
+  today,
 }: {
   group: { traineeId: string; traineeName: string; storeNumber: string; pathLabel: string; sessions: ScheduledSessionRow[] };
+  today: string;
 }) {
   return (
     <section className="rounded-3xl border border-line bg-card p-4 shadow-sm">
@@ -295,7 +294,13 @@ function TraineeSessions({
       </Link>
       <ul className="mt-3 divide-y divide-line">
         {group.sessions.map((row) => (
-          <li key={row.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
+          <li
+            key={row.id}
+            className={`flex flex-wrap items-center justify-between gap-2 rounded-2xl px-2 py-2 text-sm ${sessionSurface({
+              overdue: !row.completed && row.date < today,
+              dueToday: !row.completed && row.date === today,
+            })}`}
+          >
             <span>
               <span className="font-semibold">{row.moduleName}</span>
               <span className="text-ink/60">
@@ -353,7 +358,11 @@ function TraineeRow({ row }: { row: TraineeSummary }) {
   return (
     <Link
       href={`/trainees/${row.id}`}
-      className="block rounded-3xl border border-line bg-card p-4 shadow-sm transition hover:border-brick/40"
+      className={`block rounded-3xl border p-4 shadow-sm ${sessionSurface({
+        overdue: row.progress.overdueCount > 0,
+        stalled: row.progress.stalled,
+        dueToday: row.progress.dueTodayCount > 0 && row.progress.overdueCount === 0 && !row.progress.stalled,
+      })}`}
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
