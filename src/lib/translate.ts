@@ -44,7 +44,6 @@ export function spanishNeedsTranslation(english: ModuleText, spanish: ModuleText
   if (manual) return false;
   if (!spanish.name.trim() || spanish.name.trim() === english.name.trim()) return true;
   if (english.videoTitles.trim() && !spanish.videoTitles.trim()) return true;
-  if (english.note.trim() && !spanish.note.trim()) return true;
   return false;
 }
 

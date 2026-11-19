@@ -58,7 +58,7 @@ export default async function ModulesAdminPage({
       </div>
       <Flash error={one(params.error)} notice={notice} />
       <AddModuleForm language={language} />
-      <ModuleEditor modules={modules} />
+      <ModuleEditor modules={modules} language={language} />
     </div>
   );
 }
