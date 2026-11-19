@@ -30,6 +30,7 @@ export function NewTraineeForm({
             startDate: String(form.get("startDate") || ""),
             language: String(form.get("language") || ""),
             position: String(form.get("position") || ""),
+            path: String(form.get("path") || ""),
           });
           if ("error" in result && result.error) {
             setError(result.error);
@@ -65,6 +66,16 @@ export function NewTraineeForm({
         </select>
       </label>
       <label className="text-sm font-semibold">
+        Path
+        <select className={`${fieldClass} mt-1`} name="path" required defaultValue="">
+          <option value="" disabled>
+            Choose a path
+          </option>
+          <option value="SERVICE">Service</option>
+          <option value="PRODUCTION">Production</option>
+        </select>
+      </label>
+      <label className="text-sm font-semibold">
         Position
         <input className={`${fieldClass} mt-1`} name="position" list="positions" placeholder="Optional" />
         <datalist id="positions">
@@ -76,10 +87,10 @@ export function NewTraineeForm({
       </label>
       {error ? <p className="text-sm text-brick-dark">{error}</p> : null}
       <button className={primaryButton} disabled={pending} type="submit">
-        {pending ? "Adding" : "Create path"}
+        {pending ? "Adding" : "Create schedule"}
       </button>
       <p className="text-sm text-ink/60">
-        The 36 modules for the chosen language are attached in sheet order. Schedule each one from the trainee page.
+        Foundation is included for everyone. Service or Production is the rest of this schedule. The other section stays saved and hidden.
       </p>
     </form>
   );

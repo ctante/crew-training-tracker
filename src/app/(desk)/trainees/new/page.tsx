@@ -14,7 +14,7 @@ export default async function NewTraineePage() {
       <PageHeader
         kicker="New path"
         title="Add a trainee"
-        description="The language chooses the English or Spanish copy of the 36 modules. Progress starts blank."
+        description="Choose Service or Production. Everyone also completes Foundation. Progress starts blank."
       />
       <NewTraineeForm stores={stores} today={todayIso()} />
     </div>

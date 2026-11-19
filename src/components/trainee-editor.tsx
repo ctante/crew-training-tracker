@@ -201,17 +201,6 @@ function ModuleCard({
         </label>
       </div>
 
-      <label className="mt-3 block text-sm font-semibold">
-        Notes
-        <textarea
-          className={`${fieldClass} mt-1 min-h-16`}
-          value={state.notes}
-          onChange={(event) => setState({ ...state, notes: event.target.value })}
-          onBlur={(event) => persist({ ...state, notes: event.target.value })}
-          placeholder="Optional note for the GM or trainer"
-        />
-      </label>
-
       <div className="mt-3 flex flex-wrap items-end gap-3">
         <label className="flex min-h-11 items-center gap-2 text-sm font-semibold">
           <input

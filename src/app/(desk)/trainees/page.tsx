@@ -20,7 +20,7 @@ export default async function TraineesPage() {
       <PageHeader
         kicker="Roster"
         title="Trainees"
-        description="Each person gets one path. General managers and crew trainers keep the schedule. Crew members do not sign in."
+        description="Open a person to see their Individual Training Schedule (ITS). Crew members do not sign in."
         actions={
           <Link href="/trainees/new" className="inline-flex min-h-11 items-center rounded-full bg-brick px-4 text-sm font-semibold text-white">
             Add trainee

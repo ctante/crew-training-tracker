@@ -1,5 +1,5 @@
 import { SECTION_TITLES, type SectionId } from "./constants";
-import type { ProgressSummary } from "./progress";
+import type { ProgressSummary, TrainingPath } from "./progress";
 
 export type StoreOption = {
   id: string;
@@ -32,6 +32,7 @@ export type TraineeSummary = {
   storeName: string;
   language: "en" | "es";
   position: string;
+  path: TrainingPath | null;
   startDate: string;
   status: string;
   isSample: boolean;
@@ -77,6 +78,7 @@ export type TraineeDetail = {
   storeName: string;
   language: "en" | "es";
   position: string;
+  path: TrainingPath | null;
   startDate: string;
   status: string;
   isSample: boolean;
@@ -122,6 +124,19 @@ export type ModuleTemplate = {
   needsReview: boolean;
   kind: string;
   note: string;
+  archived: boolean;
+};
+
+export type ScheduledSessionRow = {
+  id: string;
+  date: string;
+  traineeId: string;
+  traineeName: string;
+  storeNumber: string;
+  moduleName: string;
+  trainerName: string;
+  completed: boolean;
+  timeLabel: string;
 };
 
 export function sectionTitle(language: string, section: SectionId): string {

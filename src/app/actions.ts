@@ -10,10 +10,15 @@ import {
   previewDevelopmentReport,
   setStorePassword,
   syncDevelopmentReport,
+  addCatalogModule,
   createTrainee,
   deleteTrainee,
+  moveCatalogModule,
   previewImport,
+  removeCatalogModule,
+  restoreCatalogModule,
   setTraineeLanguage,
+  setTraineePath,
   updateModuleTemplate,
   updateProgress,
   updateStaff,
@@ -42,6 +47,7 @@ export async function createTraineeAction(input: {
   startDate: string;
   language: string;
   position: string;
+  path: string;
 }) {
   try {
     const id = await createTrainee(input);
@@ -61,12 +67,24 @@ export async function updateTraineeAction(formData: FormData) {
       startDate: String(formData.get("startDate") || ""),
       position: String(formData.get("position") || ""),
       status: String(formData.get("status") || "ACTIVE"),
+      path: String(formData.get("path") || ""),
     });
   } catch (error) {
     redirect(`/trainees/${id}?error=${encodeURIComponent(message(error))}`);
   }
   refreshAll();
   redirect(`/trainees/${id}?saved=details`);
+}
+
+export async function setTraineePathAction(formData: FormData) {
+  const id = String(formData.get("id") || "");
+  try {
+    await setTraineePath(id, String(formData.get("path") || ""));
+  } catch (error) {
+    redirect(`/trainees/${id}?error=${encodeURIComponent(message(error))}`);
+  }
+  refreshAll();
+  redirect(`/trainees/${id}?saved=path`);
 }
 
 export async function changeLanguageAction(formData: FormData) {
@@ -166,6 +184,57 @@ export async function saveModuleAction(input: {
 }) {
   try {
     await updateModuleTemplate(input.id, input);
+    refreshAll();
+    return { ok: true as const };
+  } catch (error) {
+    return { ok: false as const, error: message(error) };
+  }
+}
+
+export async function addModuleAction(formData: FormData) {
+  const language = formData.get("lang") === "es" ? "es" : "en";
+  try {
+    await addCatalogModule({
+      section: String(formData.get("section") || ""),
+      nameEn: String(formData.get("nameEn") || ""),
+      nameEs: String(formData.get("nameEs") || ""),
+      timeLabel: String(formData.get("timeLabel") || ""),
+      videoCount: String(formData.get("videoCount") || ""),
+      credit: String(formData.get("credit") || ""),
+      link: String(formData.get("link") || ""),
+      videoTitles: String(formData.get("videoTitles") || ""),
+      note: String(formData.get("note") || ""),
+    });
+  } catch (error) {
+    redirect(`/admin/modules?lang=${language}&error=${encodeURIComponent(message(error))}`);
+  }
+  refreshAll();
+  redirect(`/admin/modules?lang=${language}&saved=added`);
+}
+
+export async function moveModuleAction(id: string, direction: "up" | "down") {
+  try {
+    await moveCatalogModule(id, direction);
+    refreshAll();
+    return { ok: true as const };
+  } catch (error) {
+    return { ok: false as const, error: message(error) };
+  }
+}
+
+export async function removeModuleAction(id: string) {
+  try {
+    const outcome = await removeCatalogModule(id);
+    refreshAll();
+    return { ok: true as const, outcome };
+  } catch (error) {
+    return { ok: false as const, error: message(error) };
+  }
+}
+
+export async function restoreModuleAction(id: string) {
+  try {
+    await restoreCatalogModule(id);
     refreshAll();
     return { ok: true as const };
   } catch (error) {

@@ -64,6 +64,16 @@ After the site is up, sign in with that admin password. Open **Admin**, then **S
 
 Give each restaurant only its own password. They will see that restaurant’s trainees, trainers, schedule, and progress. They will not see the other restaurants or the import and roster pages.
 
+## Paths, modules, and scheduled sessions
+
+Each trainee is Foundation plus either Service or Production. The other section stays in the database and stays off that person’s schedule. New trainees choose a path when they are added. The path can be changed on the Individual Training Schedule (ITS) page.
+
+The deploy sets a path for trainees who already have progress. It counts dated or completed Service rows against dated or completed Production rows and keeps the side with more. A tie, or no rows on either side, leaves the path unset. Those people show “Choose path” on their schedule, and the board shows how many still need one. Nothing new is required in the environment variables.
+
+Admin, then Modules (`/admin/modules`), adds a module in English and Spanish, moves modules up or down inside a section, and removes a module. If anyone already has a date, a trainer, or a completion on it, the module is archived and the history stays. If nobody has history, it is deleted. Archived modules disappear from schedules. New modules show up for every trainee in that section.
+
+The board has a Scheduled sessions view. It opens on today, using Eastern Time, and weeks run Monday through Sunday. A restaurant login sees only that restaurant. The admin login can filter by restaurant.
+
 ## What fails on the first deploy
 
 - **Missing `DATABASE_URL` or `DATABASE_URL_UNPOOLED`.** The build stops during `prisma migrate deploy` with an error that the environment variable is not set. Connect Neon, or copy the two connection strings into those names, then redeploy.

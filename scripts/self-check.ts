@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { compareTrainers, trainerPositionRank } from "../src/lib/constants";
-import { commitImport, deleteTrainee, exportTraineeCsv, getDashboard, getTrainee, matchLogin, previewImport, setStorePassword, syncDevelopmentReport } from "../src/lib/data";
+import { addCatalogModule, commitImport, deleteTrainee, exportTraineeCsv, getDashboard, getScheduledSessions, getTrainee, matchLogin, moveCatalogModule, previewImport, removeCatalogModule, setStorePassword, syncDevelopmentReport } from "../src/lib/data";
 import { prisma } from "../src/lib/db";
-import { formatLongDate, parseLooseDate } from "../src/lib/format";
+import { formatLongDate, parseLooseDate, sessionWindow } from "../src/lib/format";
 import { loadModuleSeeds } from "../src/lib/module-csv";
-import { summarize } from "../src/lib/progress";
+import { inferPathChoice, summarize } from "../src/lib/progress";
 import { parseDevelopmentReport } from "../src/lib/roster/parse";
 import { csvDevelopmentReportSource } from "../src/lib/roster/source";
 
@@ -44,6 +44,89 @@ async function main() {
   );
   assert.equal(stalled.stalled, true);
   assert.equal(stalled.overdueCount, 0);
+  assert.equal(inferPathChoice(4, 1), "SERVICE");
+  assert.equal(inferPathChoice(1, 4), "PRODUCTION");
+  assert.equal(inferPathChoice(2, 2), null);
+  assert.equal(inferPathChoice(0, 0), null);
+  const wednesday = sessionWindow("2026-11-19", "this-week");
+  assert.equal(wednesday.start, "2026-11-16");
+  assert.equal(wednesday.end, "2026-11-22");
+  assert.equal(sessionWindow("2026-11-16", "this-week").start, "2026-11-16");
+  assert.equal(sessionWindow("2026-11-22", "this-week").end, "2026-11-22");
+  assert.equal(sessionWindow("2026-11-19", "last-week").start, "2026-11-09");
+  assert.equal(sessionWindow("2026-11-19", "next-week").end, "2026-11-29");
+  assert.deepEqual(sessionWindow("2026-11-19", "this-month"), {
+    range: "this-month",
+    start: "2026-11-01",
+    end: "2026-11-30",
+  });
+  const scoped = summarize(
+    [
+      {
+        sortOrder: 1,
+        section: "FOUNDATION",
+        name: "Foundation",
+        timeMinutes: 10,
+        completed: true,
+        completedDate: "2026-11-01",
+        scheduledDate: null,
+        trainerLabel: "",
+      },
+      {
+        sortOrder: 11,
+        section: "SERVICE",
+        name: "Service",
+        timeMinutes: 10,
+        completed: false,
+        completedDate: null,
+        scheduledDate: null,
+        trainerLabel: "",
+      },
+      {
+        sortOrder: 27,
+        section: "PRODUCTION",
+        name: "Production",
+        timeMinutes: 10,
+        completed: false,
+        completedDate: null,
+        scheduledDate: "2026-11-01",
+        trainerLabel: "",
+      },
+    ],
+    { startDate: "2026-11-01", status: "ACTIVE", today: "2026-11-19", path: "SERVICE" },
+  );
+  assert.equal(scoped.total, 2);
+  assert.equal(scoped.completed, 1);
+  assert.equal(scoped.percent, 50);
+  assert.equal(scoped.overdueCount, 0);
+  assert.equal(scoped.sections.map((section) => section.section).join(","), "FOUNDATION,SERVICE");
+  const unset = summarize(
+    [
+      {
+        sortOrder: 1,
+        section: "FOUNDATION",
+        name: "Foundation",
+        timeMinutes: 10,
+        completed: false,
+        completedDate: null,
+        scheduledDate: null,
+        trainerLabel: "",
+      },
+      {
+        sortOrder: 11,
+        section: "SERVICE",
+        name: "Service",
+        timeMinutes: 10,
+        completed: true,
+        completedDate: "2026-11-01",
+        scheduledDate: null,
+        trainerLabel: "",
+      },
+    ],
+    { startDate: "2026-11-01", status: "ACTIVE", today: "2026-11-19", path: null },
+  );
+  assert.equal(unset.total, 1);
+  assert.equal(unset.completed, 0);
 
   const [stores, modules, trainees, flagged] = await Promise.all([
     prisma.store.count(),
@@ -63,6 +146,13 @@ async function main() {
 
   const riley = board.rows.find((row) => row.name === "Riley Sample");
   assert.ok(riley);
+  const rileyDetail = await getTrainee(riley.id);
+  assert.ok(rileyDetail);
+  assert.equal(rileyDetail.path, "SERVICE");
+  assert.equal(
+    rileyDetail.modules.some((module) => module.section === "PRODUCTION"),
+    false,
+  );
   const file = await exportTraineeCsv(riley.id);
   assert.ok(file);
   assert.ok(file.csv.includes("Module,Time,Videos,Credit,Date,Trainer,Completed"));
@@ -73,7 +163,7 @@ async function main() {
     startDate: "2026-10-27",
     position: "Crew",
   });
-  assert.equal(preview.applicable, 36, JSON.stringify(preview.issues));
+  assert.equal(preview.applicable, rileyDetail.modules.length, JSON.stringify(preview.issues));
   assert.equal(preview.issues.length, 0);
 
   const memberships = await prisma.trainee.findMany({ select: { storeId: true } });
@@ -225,6 +315,76 @@ Zed Unqualified,05207,Shift Manager,No
     await prisma.store.update({ where: { id: storeB.id }, data: { passwordHash: null } });
   }
 
+  const todaySessions = await getScheduledSessions({ range: "today" });
+  assert.ok(todaySessions.rows.every((row) => row.date === todaySessions.today));
+  assert.ok(board.stats.needsPath > 0);
+
+  const sortBefore = await prisma.module.findMany({ select: { id: true, sortOrder: true } });
+  const foundation = await prisma.module.findMany({
+    where: { language: "en", section: "FOUNDATION", archived: false },
+    orderBy: { sortOrder: "asc" },
+  });
+  const moved = foundation[1];
+  try {
+    await moveCatalogModule(moved.id, "up");
+    assert.equal((await prisma.module.findUniqueOrThrow({ where: { id: moved.id } })).sortOrder, foundation[0].sortOrder);
+    await moveCatalogModule(moved.id, "down");
+    assert.equal((await prisma.module.findUniqueOrThrow({ where: { id: moved.id } })).sortOrder, moved.sortOrder);
+
+    const fresh = await addCatalogModule({
+      section: "SERVICE",
+      nameEn: "Delete Check Module",
+      nameEs: "Modulo para borrar",
+      timeLabel: "5 min",
+      videoCount: "",
+      credit: "",
+      link: "",
+      videoTitles: "",
+      note: "",
+    });
+    const enTrainees = await prisma.trainee.count({ where: { language: "en" } });
+    assert.equal(await prisma.traineeModule.count({ where: { moduleId: fresh.enId } }), enTrainees);
+    assert.equal(await removeCatalogModule(fresh.enId), "deleted");
+    assert.equal(await prisma.module.count({ where: { id: { in: [fresh.enId, fresh.esId] } } }), 0);
+
+    const kept = await addCatalogModule({
+      section: "PRODUCTION",
+      nameEn: "Archive Check Module",
+      nameEs: "Modulo para archivar",
+      timeLabel: "5 min",
+      videoCount: "",
+      credit: "",
+      link: "",
+      videoTitles: "",
+      note: "",
+    });
+    const history = await prisma.traineeModule.findFirstOrThrow({ where: { moduleId: kept.enId } });
+    await prisma.traineeModule.update({
+      where: { id: history.id },
+      data: { completed: true, completedDate: "2026-11-01" },
+    });
+    assert.equal(await removeCatalogModule(kept.enId), "archived");
+    assert.equal((await prisma.module.findUniqueOrThrow({ where: { id: kept.enId } })).archived, true);
+    assert.ok(await prisma.traineeModule.findUnique({ where: { id: history.id } }));
+    const hidden = await getTrainee(history.traineeId);
+    assert.equal(hidden?.modules.some((module) => module.name === "Archive Check Module"), false);
+  } finally {
+    await prisma.traineeModule.deleteMany({
+      where: { module: { name: { in: ["Delete Check Module", "Modulo para borrar", "Archive Check Module", "Modulo para archivar"] } } },
+    });
+    await prisma.module.deleteMany({
+      where: { name: { in: ["Delete Check Module", "Modulo para borrar", "Archive Check Module", "Modulo para archivar"] } },
+    });
+    for (const row of sortBefore) {
+      await prisma.module.update({ where: { id: row.id }, data: { sortOrder: row.sortOrder + 100000 } });
+    }
+    for (const row of sortBefore) {
+      await prisma.module.update({ where: { id: row.id }, data: { sortOrder: row.sortOrder } });
+    }
+  }
+
+  const paths = await prisma.trainee.groupBy({ by: ["path"], _count: { _all: true } });
+  console.log("Local path counts:", paths.map((row) => `${row.path ?? "unset"}=${row._count._all}`).join(", "));
   console.log("Self-check passed.");
 }
 

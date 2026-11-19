@@ -65,6 +65,7 @@ model Module {
   needsReview  Boolean         @default(false)
   kind         String
   note         String          @default("")
+  archived     Boolean         @default(false)
   progress     TraineeModule[]
 
   @@unique([language, sortOrder])
@@ -79,6 +80,7 @@ model Trainee {
   startDate String
   language  String
   position  String          @default("")
+  path      String?
   status    String          @default("ACTIVE")
   isSample  Boolean         @default(false)
   createdAt DateTime        @default(now())
