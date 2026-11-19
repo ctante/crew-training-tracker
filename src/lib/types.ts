@@ -134,6 +134,7 @@ export type ModuleTemplate = {
   link: string;
   videoTitles: string;
   needsReview: boolean;
+  linkVerified: boolean;
   kind: string;
   note: string;
   archived: boolean;

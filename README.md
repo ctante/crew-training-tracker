@@ -74,7 +74,7 @@ The all-restaurant export adds store, trainee, language, position, start date, s
 - Scheduling is a calendar date plus a trainer. The sheet has no start time.
 - English and Spanish are two copies of the same 36 steps so a link can differ. Switching a trainee’s language keeps checks and dates on the same step numbers.
 - Campus links open in a new tab and still require a Campus login.
-- MOP with ROA Simulation and Grilling (both languages) are flagged **Needs review** because the URL contains a personal `regId`.
+- Grilling (both languages) is flagged **Needs review** because the URL contains a personal `regId`. MOP with ROA Simulation uses the same kind of link, and that one is marked OK because it works for everyone. Admin can mark any other flagged link OK.
 - The HazMat module name still includes the master-sheet id `5207 / 162067`.
 - Block labels such as `3 hr 30 min` and `4 hr` are the column A estimates from the ITS template. Row times are shown separately.
 - There is one shared desk. GMs and crew trainers are not separate logins yet.

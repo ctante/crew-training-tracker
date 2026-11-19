@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { compareTrainers, trainerPositionRank } from "../src/lib/constants";
-import { addCatalogModule, addSecondPath, commitImport, createTrainee, deleteTrainee, exportTraineeCsv, getDashboard, getScheduledSessions, getTrainee, matchLogin, moveCatalogModule, moveCatalogModuleToSection, previewImport, removeCatalogModule, setStorePassword, syncDevelopmentReport, updateModuleTemplate } from "../src/lib/data";
+import { addCatalogModule, addSecondPath, commitImport, createTrainee, deleteTrainee, exportTraineeCsv, getDashboard, getScheduledSessions, getTrainee, markModuleLinkOk, matchLogin, moveCatalogModule, moveCatalogModuleToSection, previewImport, removeCatalogModule, setStorePassword, syncDevelopmentReport, updateModuleTemplate } from "../src/lib/data";
 import { parseModuleLinks } from "../src/lib/drive";
 import { spanishTextUpdate } from "../src/lib/translate";
 import { getReports } from "../src/lib/reports";
@@ -64,7 +64,9 @@ async function main() {
   assert.equal(seeds.length, 72);
   assert.equal(seeds.filter((row) => row.language === "en" && row.link).length, 24);
   assert.equal(seeds.filter((row) => row.language === "es" && row.link).length, 23);
-  assert.equal(seeds.filter((row) => row.needsReview).length, 4);
+  assert.equal(seeds.filter((row) => row.needsReview).length, 2);
+  assert.ok(seeds.filter((row) => row.link.includes("cours000000000020034")).every((row) => row.linkVerified && !row.needsReview));
+  assert.ok(seeds.filter((row) => row.link.includes("cours000000000057227")).every((row) => !row.linkVerified && row.needsReview));
   assert.equal(parseLooseDate("Wednesday, November 4, 2026"), "2026-11-04");
   assert.equal(formatLongDate("2026-11-04"), "Wednesday, November 4, 2026");
 
@@ -207,7 +209,36 @@ async function main() {
   assert.equal(stores, 10);
   assert.equal(modules, 72);
   assert.equal(trainees, 24);
-  assert.equal(flagged, 4);
+  assert.equal(flagged, 2);
+  const verifiedLinks = await prisma.module.findMany({ where: { link: { contains: "cours000000000020034" } } });
+  assert.equal(verifiedLinks.length, 2);
+  assert.ok(verifiedLinks.every((row) => row.linkVerified && !row.needsReview));
+  const grilling = await prisma.module.findFirstOrThrow({ where: { language: "en", name: "Grilling" } });
+  assert.equal(grilling.needsReview, true);
+  assert.equal(grilling.linkVerified, false);
+  const mop = verifiedLinks.find((row) => row.language === "en");
+  assert.ok(mop);
+  await updateModuleTemplate(mop.id, {
+    name: mop.name,
+    timeLabel: mop.timeLabel,
+    videoCount: mop.videoCount === null ? "" : String(mop.videoCount),
+    credit: mop.credit ?? "",
+    link: mop.link,
+    videoTitles: mop.videoTitles,
+    note: mop.note,
+  });
+  const mopAfter = await prisma.module.findUniqueOrThrow({ where: { id: mop.id } });
+  assert.equal(mopAfter.linkVerified, true);
+  assert.equal(mopAfter.needsReview, false);
+  await markModuleLinkOk(grilling.id);
+  const grillingMarked = await prisma.module.findUniqueOrThrow({ where: { id: grilling.id } });
+  assert.equal(grillingMarked.linkVerified, true);
+  assert.equal(grillingMarked.needsReview, false);
+  await prisma.module.updateMany({
+    where: { sortOrder: grilling.sortOrder, link: grilling.link },
+    data: { linkVerified: false, needsReview: true },
+  });
+  assert.equal((await prisma.module.findUniqueOrThrow({ where: { id: grilling.id } })).needsReview, true);
 
   const board = await getDashboard({ status: "ACTIVE" });
   assert.ok(board.rows.some((row) => row.progress.overdueCount > 0));
