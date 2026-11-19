@@ -33,7 +33,7 @@ export default async function AdminPage({
               Edit modules
             </Link>
             <Link href="/admin/import" className={ghostButton}>
-              Import progress
+              Bulk progress
             </Link>
           </>
         }

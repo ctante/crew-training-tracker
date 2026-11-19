@@ -14,7 +14,7 @@ export default async function ImportPage() {
       <PageHeader
         kicker="Sheets"
         title="Import and export"
-        description="A single ITS tab uses Module, Time, Videos, Credit, Date, Trainer, Completed. A workbook export adds the restaurant and the trainee on every row."
+        description="A bulk sheet uses Store Number, Trainee, Language, Start Date, Section, Module, Time, Date, Trainer, Completed. Language and Time pick the right module when the name is shared by a video and a floor session. A single ITS tab uses Module, Time, Videos, Credit, Date, Trainer, Completed."
       />
       <div className="mb-5 flex flex-wrap gap-2">
         <a className={ghostButton} href="/api/export" download>
