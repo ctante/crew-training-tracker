@@ -1005,7 +1005,6 @@ export async function updateModuleTemplate(
       credit,
       link,
       videoTitles: input.videoTitles.trim(),
-      note: input.note.trim().slice(0, 400),
       needsReview: /regId=/i.test(link),
       kind: moduleKind({ link, videoCount, credit }),
       ...(current.language === "es" ? { manualTranslation: true } : {}),
@@ -1039,7 +1038,7 @@ export async function translateMissingSpanish(): Promise<{ updated: number; skip
   let failed = 0;
   for (const row of english) {
     const twin = byOrder.get(row.sortOrder) ?? null;
-    const englishText = { name: row.name, videoTitles: row.videoTitles, note: row.note };
+    const englishText = { name: row.name, videoTitles: row.videoTitles, note: "" };
     if (twin?.manualTranslation) {
       skipped += 1;
       continue;
@@ -1056,7 +1055,7 @@ export async function translateMissingSpanish(): Promise<{ updated: number; skip
     const text = {
       name: !twin || !twin.name.trim() || twin.name.trim() === row.name.trim() ? translated.name || row.name : twin.name,
       videoTitles: !twin || !twin.videoTitles.trim() ? translated.videoTitles : twin.videoTitles,
-      note: !twin || !twin.note.trim() ? translated.note : twin.note,
+      note: twin?.note ?? "",
     };
     const link = twin && twin.link.trim() && twin.link.trim() !== row.link.trim() ? twin.link : row.link;
     const saved = await prisma.module.upsert({
@@ -1099,7 +1098,7 @@ async function syncSpanishFromEnglish(
   const english = await prisma.module.findUnique({ where: { id: englishId } });
   if (!english || english.language !== "en") return {};
   const spanish = await prisma.module.findFirst({ where: { language: "es", sortOrder: english.sortOrder } });
-  const englishText = { name: english.name, videoTitles: english.videoTitles, note: english.note, link: english.link };
+  const englishText = { name: english.name, videoTitles: english.videoTitles, note: "", link: english.link };
   if (!spanish) {
     const translated = options.manualText ?? (await translateToSpanish(englishText));
     const decision = spanishTextUpdate({
@@ -1117,7 +1116,6 @@ async function syncSpanishFromEnglish(
         ...sharedSpanishFields(english),
         name: decision.text.name.slice(0, 160),
         videoTitles: decision.text.videoTitles,
-        note: decision.text.note.slice(0, 400),
         ...linkMeta(decision.link, english.videoCount, english.credit),
         archived: english.archived,
         manualTranslation: Boolean(options.manualText),
@@ -1146,7 +1144,6 @@ async function syncSpanishFromEnglish(
       ...sharedSpanishFields(english),
       name: decision.text.name.slice(0, 160),
       videoTitles: decision.text.videoTitles,
-      note: decision.text.note.slice(0, 400),
       ...linkMeta(decision.link, english.videoCount, english.credit),
       manualTranslation: options.manualText ? true : decision.manual,
     },

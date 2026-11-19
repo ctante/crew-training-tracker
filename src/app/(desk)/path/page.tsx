@@ -82,7 +82,6 @@ export default async function PathPage({
                     {module.needsReview ? <Flag kind="review">Needs review</Flag> : null}
                   </div>
                 </div>
-                {module.note ? <p className="mt-2 text-sm text-sun-deep">{module.note}</p> : null}
                 <div className="mt-2">
                   <ModuleLinks link={module.link} empty="No Campus link" />
                   {titles.length > 0 ? (

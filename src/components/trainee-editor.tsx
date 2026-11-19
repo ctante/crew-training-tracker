@@ -119,7 +119,6 @@ function ModuleCard({
         </div>
       </div>
 
-      {module.note ? <p className="mt-2 text-sm text-sun-deep">{module.note}</p> : null}
       {module.needsReview ? (
         <p className="mt-2 text-sm text-sun-deep">
           This Campus link includes a personal regId, so it may only open for the person who was enrolled.

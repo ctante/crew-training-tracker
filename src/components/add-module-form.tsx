@@ -3,15 +3,14 @@
 import { useState, useTransition } from "react";
 import { addModuleAction, previewSpanishAction } from "@/app/actions";
 import { LinkHint, ModuleLinks } from "@/components/module-links";
-import { fieldClass, primaryButton } from "@/components/ui";
+import { fieldClass, ghostButton, primaryButton } from "@/components/ui";
 
 export function AddModuleForm({ language }: { language: "en" | "es" }) {
+  const [open, setOpen] = useState(false);
   const [nameEn, setNameEn] = useState("");
   const [nameEs, setNameEs] = useState("");
   const [videoTitles, setVideoTitles] = useState("");
   const [videoTitlesEs, setVideoTitlesEs] = useState("");
-  const [note, setNote] = useState("");
-  const [noteEs, setNoteEs] = useState("");
   const [link, setLink] = useState("");
   const [spanishSource, setSpanishSource] = useState<"auto" | "manual">("auto");
   const [status, setStatus] = useState("");
@@ -22,11 +21,26 @@ export function AddModuleForm({ language }: { language: "en" | "es" }) {
     setter(value);
   }
 
+  if (!open) {
+    return (
+      <button className={`${primaryButton} mb-6`} type="button" onClick={() => setOpen(true)}>
+        Add module
+      </button>
+    );
+  }
+
   return (
     <form action={addModuleAction} className="mb-6 grid gap-3 rounded-3xl border border-line bg-card p-4 shadow-sm sm:grid-cols-2">
       <input type="hidden" name="lang" value={language} />
       <input type="hidden" name="spanishSource" value={spanishSource} />
-      <h2 className="font-display text-2xl sm:col-span-2">Add a module</h2>
+      <input type="hidden" name="note" value="" />
+      <input type="hidden" name="noteEs" value="" />
+      <div className="flex flex-wrap items-center justify-between gap-2 sm:col-span-2">
+        <h2 className="font-display text-2xl">Add a module</h2>
+        <button className={ghostButton} type="button" onClick={() => setOpen(false)}>
+          Close
+        </button>
+      </div>
       <label className="text-sm font-semibold">
         Section
         <select className={`${fieldClass} mt-1`} name="section" defaultValue="FOUNDATION">
@@ -70,10 +84,6 @@ export function AddModuleForm({ language }: { language: "en" | "es" }) {
         English video titles
         <textarea className={`${fieldClass} mt-1 min-h-16`} name="videoTitles" value={videoTitles} onChange={(event) => setVideoTitles(event.target.value)} />
       </label>
-      <label className="text-sm font-semibold sm:col-span-2">
-        English note
-        <textarea className={`${fieldClass} mt-1 min-h-16`} name="note" value={note} onChange={(event) => setNote(event.target.value)} />
-      </label>
       <div className="rounded-2xl border border-line bg-paper p-3 sm:col-span-2">
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
           <h3 className="text-sm font-semibold">Spanish text</h3>
@@ -84,14 +94,13 @@ export function AddModuleForm({ language }: { language: "en" | "es" }) {
             onClick={() => {
               setStatus("Translating");
               startTransition(async () => {
-                const result = await previewSpanishAction({ name: nameEn, videoTitles, note });
+                const result = await previewSpanishAction({ name: nameEn, videoTitles, note: "" });
                 if (!result.ok) {
                   setStatus(result.error);
                   return;
                 }
                 setNameEs(result.text.name);
                 setVideoTitlesEs(result.text.videoTitles);
-                setNoteEs(result.text.note);
                 setSpanishSource("auto");
                 setStatus("Spanish filled in. Edit it if you want different wording.");
               });
@@ -111,10 +120,6 @@ export function AddModuleForm({ language }: { language: "en" | "es" }) {
           <label className="text-sm font-semibold">
             Spanish video titles
             <textarea className={`${fieldClass} mt-1 min-h-16`} name="videoTitlesEs" value={videoTitlesEs} onChange={(event) => editSpanish(setVideoTitlesEs, event.target.value)} />
-          </label>
-          <label className="text-sm font-semibold">
-            Spanish note
-            <textarea className={`${fieldClass} mt-1 min-h-16`} name="noteEs" value={noteEs} onChange={(event) => editSpanish(setNoteEs, event.target.value)} />
           </label>
         </div>
         {status ? <p className="mt-2 text-sm text-ink/70">{status}</p> : null}

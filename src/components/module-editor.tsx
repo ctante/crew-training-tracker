@@ -9,8 +9,10 @@ import { SECTIONS, type SectionId } from "@/lib/constants";
 import { splitTitles } from "@/lib/format";
 import { sectionTitle, type ModuleTemplate } from "@/lib/types";
 
-export function ModuleEditor({ modules }: { modules: ModuleTemplate[] }) {
+export function ModuleEditor({ modules, language }: { modules: ModuleTemplate[]; language: "en" | "es" }) {
   const [query, setQuery] = useState("");
+  const [sectionsOpen, setSectionsOpen] = useState<Record<string, boolean>>({});
+  const [cardsOpen, setCardsOpen] = useState<Record<string, boolean>>({});
   const shown = useMemo(() => {
     const needle = query.trim().toLowerCase();
     if (!needle) return modules;
@@ -23,6 +25,23 @@ export function ModuleEditor({ modules }: { modules: ModuleTemplate[] }) {
   const review = modules.filter((module) => module.needsReview && !module.archived).length;
   const active = shown.filter((module) => !module.archived);
   const archived = shown.filter((module) => module.archived);
+  const searching = query.trim().length > 0;
+
+  function sectionIsOpen(id: string, count: number) {
+    if (searching) return count > 0;
+    return sectionsOpen[id] === true;
+  }
+
+  function setEvery(open: boolean) {
+    const sections: Record<string, boolean> = { archived: open };
+    for (const section of SECTIONS) sections[section] = open;
+    const cards: Record<string, boolean> = {};
+    if (open) {
+      for (const item of modules) cards[item.id] = true;
+    }
+    setSectionsOpen(sections);
+    setCardsOpen(cards);
+  }
 
   return (
     <div>
@@ -36,32 +55,88 @@ export function ModuleEditor({ modules }: { modules: ModuleTemplate[] }) {
             placeholder="Fries, parrilla, verification"
           />
         </label>
-        <p className="text-sm text-ink/70">
-          {review} link{review === 1 ? "" : "s"} in this language need review.
-        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <button className={ghostButton} type="button" onClick={() => setEvery(true)}>
+            Expand all
+          </button>
+          <button className={ghostButton} type="button" onClick={() => setEvery(false)}>
+            Collapse all
+          </button>
+          <p className="text-sm text-ink/70">
+            {review} link{review === 1 ? "" : "s"} in this language need review.
+          </p>
+        </div>
       </div>
-      <div className="space-y-3">
-        {active.map((module) => {
-          const section = active.filter((item) => item.section === module.section);
-          const index = section.findIndex((item) => item.id === module.id);
+      <div className="space-y-4">
+        {SECTIONS.map((section) => {
+          const rows = active.filter((module) => module.section === section);
+          const open = sectionIsOpen(section, rows.length);
           return (
-            <ModuleForm
-              key={module.id}
-              module={module}
-              canUp={index > 0}
-              canDown={index >= 0 && index < section.length - 1}
-            />
+            <section key={section} className="rounded-3xl border border-line bg-card/40">
+              <button
+                type="button"
+                className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
+                aria-expanded={open}
+                onClick={() => setSectionsOpen((current) => ({ ...current, [section]: !sectionIsOpen(section, rows.length) }))}
+              >
+                <span className="font-display text-2xl">{sectionTitle(language, section)}</span>
+                <span className="text-sm font-semibold text-ink/60">
+                  {rows.length} {rows.length === 1 ? "module" : "modules"} · {open ? "Hide" : "Show"}
+                </span>
+              </button>
+              {open ? (
+                <div className="space-y-3 px-3 pb-3">
+                  {rows.length === 0 ? (
+                    <p className="rounded-2xl border border-dashed border-line px-4 py-6 text-sm text-ink/60">No modules in this section.</p>
+                  ) : (
+                    rows.map((module, index) => (
+                      <ModuleForm
+                        key={module.id}
+                        module={module}
+                        canUp={index > 0}
+                        canDown={index < rows.length - 1}
+                        open={Boolean(cardsOpen[module.id])}
+                        onToggle={() => setCardsOpen((current) => ({ ...current, [module.id]: !current[module.id] }))}
+                      />
+                    ))
+                  )}
+                </div>
+              ) : null}
+            </section>
           );
         })}
       </div>
       {archived.length > 0 ? (
-        <div className="mt-8 space-y-3">
-          <h2 className="font-display text-2xl">Archived</h2>
-          <p className="text-sm text-ink/60">Hidden from schedules. Progress already recorded stays in the database.</p>
-          {archived.map((module) => (
-            <ModuleForm key={module.id} module={module} canUp={false} canDown={false} />
-          ))}
-        </div>
+        <section className="mt-8 rounded-3xl border border-line bg-card/40">
+          <button
+            type="button"
+            className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
+            aria-expanded={sectionIsOpen("archived", archived.length)}
+            onClick={() =>
+              setSectionsOpen((current) => ({ ...current, archived: !sectionIsOpen("archived", archived.length) }))
+            }
+          >
+            <span>
+              <span className="font-display text-2xl">Archived</span>
+              <span className="mt-1 block text-sm font-normal text-ink/60">Hidden from schedules. Progress already recorded stays in the database.</span>
+            </span>
+            <span className="text-sm font-semibold text-ink/60">{sectionIsOpen("archived", archived.length) ? "Hide" : "Show"}</span>
+          </button>
+          {sectionIsOpen("archived", archived.length) ? (
+            <div className="space-y-3 px-3 pb-3">
+              {archived.map((module) => (
+                <ModuleForm
+                  key={module.id}
+                  module={module}
+                  canUp={false}
+                  canDown={false}
+                  open={Boolean(cardsOpen[module.id])}
+                  onToggle={() => setCardsOpen((current) => ({ ...current, [module.id]: !current[module.id] }))}
+                />
+              ))}
+            </div>
+          ) : null}
+        </section>
       ) : null}
     </div>
   );
@@ -71,10 +146,14 @@ function ModuleForm({
   module,
   canUp,
   canDown,
+  open,
+  onToggle,
 }: {
   module: ModuleTemplate;
   canUp: boolean;
   canDown: boolean;
+  open: boolean;
+  onToggle: () => void;
 }) {
   const router = useRouter();
   const [section, setSection] = useState(module.section);
@@ -84,10 +163,8 @@ function ModuleForm({
   const [credit, setCredit] = useState(module.credit ?? "");
   const [link, setLink] = useState(module.link);
   const [videoTitles, setVideoTitles] = useState(module.videoTitles);
-  const [note, setNote] = useState(module.note);
   const [esName, setEsName] = useState(module.spanish?.name ?? "");
   const [esTitles, setEsTitles] = useState(module.spanish?.videoTitles ?? "");
-  const [esNote, setEsNote] = useState(module.spanish?.note ?? "");
   const [esManual, setEsManual] = useState(module.spanish?.manualTranslation ?? false);
   const [esDirty, setEsDirty] = useState(false);
   const [status, setStatus] = useState("");
@@ -110,8 +187,8 @@ function ModuleForm({
             credit,
             link,
             videoTitles,
-            note,
-            spanishManual: module.language === "en" && esDirty ? { name: esName, videoTitles: esTitles, note: esNote } : undefined,
+            note: module.note,
+            spanishManual: module.language === "en" && esDirty ? { name: esName, videoTitles: esTitles, note: module.spanish?.note ?? "" } : undefined,
           });
           if (!result.ok) {
             setStatus(result.error);
@@ -121,7 +198,6 @@ function ModuleForm({
           if (result.spanish) {
             setEsName(result.spanish.name);
             setEsTitles(result.spanish.videoTitles);
-            setEsNote(result.spanish.note);
             setEsManual(result.spanish.manual);
             setEsDirty(false);
           }
@@ -130,9 +206,18 @@ function ModuleForm({
       }}
     >
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-xs font-semibold text-ink/45">{String(module.sortOrder).padStart(2, "0")}</span>
+        <button type="button" className="min-w-0 flex-1 text-left" aria-expanded={open} onClick={onToggle}>
+          <span className="text-xs font-semibold text-ink/45">
+            {String(module.sortOrder).padStart(2, "0")}
+            {timeLabel ? ` · ${timeLabel}` : ""}
+            {videoCount ? ` · ${videoCount} videos` : ""}
+            {credit ? ` · ${credit}` : ""}
+          </span>
+          <span className="block text-lg font-semibold leading-snug">{name}</span>
+          <span className="text-xs font-semibold text-campus">{open ? "Hide" : "Edit"}</span>
+        </button>
         <Flag kind={module.kind === "campus" ? "campus" : module.kind === "app" ? "app" : "floor"}>
-          {module.sectionTitle}
+          {module.kind === "campus" ? "Campus" : module.kind === "app" ? "App check" : "On the floor"}
         </Flag>
         {needsReview ? <Flag kind="review">Needs review</Flag> : null}
         {module.language === "es" && (esManual || module.manualTranslation) ? <Flag kind="manual">Edited by hand</Flag> : null}
@@ -168,6 +253,7 @@ function ModuleForm({
           </span>
         )}
       </div>
+      {open ? (
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <label className="text-sm font-semibold sm:col-span-2">
           Section
@@ -245,15 +331,12 @@ function ModuleForm({
             onChange={(event) => setVideoTitles(event.target.value)}
           />
         </label>
-        <label className="text-sm font-semibold sm:col-span-2">
-          Note
-          <textarea className={`${fieldClass} mt-1 min-h-16`} value={note} onChange={(event) => setNote(event.target.value)} />
-        </label>
       </div>
-      {titles.length > 0 ? (
+      ) : null}
+      {open && titles.length > 0 ? (
         <p className="mt-2 text-xs text-ink/55">{titles.length} titles parsed from the list.</p>
       ) : null}
-      {module.language === "en" && module.spanish ? (
+      {open && module.language === "en" && module.spanish ? (
         <div className="mt-3 rounded-2xl border border-line bg-paper p-3">
           <div className="mb-2 flex flex-wrap items-center gap-2">
             <h3 className="text-sm font-semibold">Spanish text</h3>
@@ -287,20 +370,10 @@ function ModuleForm({
                 }}
               />
             </label>
-            <label className="text-sm font-semibold">
-              Spanish note
-              <textarea
-                className={`${fieldClass} mt-1 min-h-16`}
-                value={esNote}
-                onChange={(event) => {
-                  setEsNote(event.target.value);
-                  setEsDirty(true);
-                }}
-              />
-            </label>
           </div>
         </div>
       ) : null}
+      {open ? (
       <div className="mt-3 flex flex-wrap items-center gap-3">
         <button className={primaryButton} disabled={pending} type="submit">
           Save module
@@ -319,11 +392,9 @@ function ModuleForm({
               if (module.language === "es") {
                 setName(result.spanish.name);
                 setVideoTitles(result.spanish.videoTitles);
-                setNote(result.spanish.note);
               }
               setEsName(result.spanish.name);
               setEsTitles(result.spanish.videoTitles);
-              setEsNote(result.spanish.note);
               setEsManual(result.spanish.manual);
               setEsDirty(false);
               setStatus(result.warning || "Spanish updated from English.");
@@ -366,6 +437,11 @@ function ModuleForm({
           {status}
         </p>
       </div>
+      ) : status ? (
+        <p className="mt-2 text-sm text-ink/60" aria-live="polite">
+          {status}
+        </p>
+      ) : null}
     </form>
   );
 }
