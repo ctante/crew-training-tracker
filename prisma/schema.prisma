@@ -20,13 +20,15 @@ model RosterSync {
 }
 
 model Store {
-  id        String    @id @default(cuid())
-  number    String    @unique
-  name      String    @default("")
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  staff     Staff[]
-  trainees  Trainee[]
+  id             String    @id @default(cuid())
+  number         String    @unique
+  name           String    @default("")
+  passwordHash   String?
+  sessionVersion Int       @default(1)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  staff          Staff[]
+  trainees       Trainee[]
 }
 
 model Staff {

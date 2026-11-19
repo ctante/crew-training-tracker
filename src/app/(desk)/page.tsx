@@ -52,9 +52,11 @@ export default async function HomePage({
       ) : null}
 
       <div className="mt-5 flex gap-2 overflow-x-auto pb-1">
-        <Chip href={withParams("/", current, { store: null })} active={!storeNumber}>
-          All restaurants
-        </Chip>
+        {data.locked ? null : (
+          <Chip href={withParams("/", current, { store: null })} active={!storeNumber}>
+            All restaurants
+          </Chip>
+        )}
         {data.stores.map((store) => (
           <Chip
             key={store.number}

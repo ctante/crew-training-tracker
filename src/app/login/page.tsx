@@ -20,7 +20,7 @@ export default async function LoginPage({
       <p className="text-xs font-bold uppercase tracking-[0.18em] text-brick">Crew Training Tracker</p>
       <h1 className="mt-2 font-display text-4xl text-ink">Team sign-in</h1>
       <p className="mt-2 text-sm leading-6 text-ink/70">
-        General managers and crew trainers share one password. Ask the person who set up the site if you need it.
+        Use the admin password, or the password for your restaurant. Ask the person who set up the site if you need it.
       </p>
       <div className="mt-2 rounded-3xl border border-line bg-card p-5 shadow-sm">
         <LoginForm nextPath={safeNextPath(nextValue)} />

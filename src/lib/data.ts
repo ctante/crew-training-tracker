@@ -1,6 +1,10 @@
+import { notFound } from "next/navigation";
+import { access, ownsStore, requireAdmin, scopedStoreNumber, type Access } from "./access";
 import { blockStart, canonicalTrainerPosition, compareTrainers, moduleKind, type SectionId } from "./constants";
 import { parseCsv, toCsv } from "./csv";
 import { prisma } from "./db";
+import { hashPassword, verifyPassword } from "./passwords";
+import { safeEqual } from "./session";
 import {
   currentMonthKey,
   formatLongDate,
@@ -174,8 +178,11 @@ async function syncStatus(traineeId: string) {
   }
 }
 
-export function countSampleTrainees() {
-  return prisma.trainee.count({ where: { isSample: true } });
+export async function countSampleTrainees() {
+  const who = await access();
+  return prisma.trainee.count({
+    where: { isSample: true, ...(who.role === "store" ? { storeId: who.storeId } : {}) },
+  });
 }
 
 export async function getDashboard(filters: {
@@ -184,15 +191,21 @@ export async function getDashboard(filters: {
   flag?: string;
   query?: string;
 }) {
+  const who = await access();
+  const storeNumber = scopedStoreNumber(who, filters.storeNumber);
   const today = todayIso();
   const [stores, trainees] = await Promise.all([
     prisma.store.findMany({
+      where: storeNumber ? { number: storeNumber } : undefined,
       orderBy: { number: "asc" },
       include: {
         staff: { where: { isGm: true, active: true }, orderBy: { name: "asc" } },
       },
     }),
-    prisma.trainee.findMany({ include: traineeInclude }),
+    prisma.trainee.findMany({
+      where: storeNumber ? { store: { number: storeNumber } } : undefined,
+      include: traineeInclude,
+    }),
   ]);
   const summaries = trainees.map((trainee) => toSummary(trainee as TraineeRecord, today));
   const status = filters.status || "ACTIVE";
@@ -251,24 +264,34 @@ export async function getDashboard(filters: {
       dueToday: scoped.filter((row) => row.progress.dueTodayCount > 0).length,
     },
     rows,
+    locked: who.role === "store",
   };
 }
 
 export async function listStoreChoices() {
-  const stores = await prisma.store.findMany({ orderBy: { number: "asc" } });
+  const who = await access();
+  const stores = await prisma.store.findMany({
+    where: who.role === "store" ? { id: who.storeId } : undefined,
+    orderBy: { number: "asc" },
+  });
   return stores.map((store) => ({ id: store.id, number: store.number, name: store.name }));
 }
 
-export async function getTrainee(id: string): Promise<TraineeDetail | null> {
+export async function getTrainee(id: string, scope?: Access): Promise<TraineeDetail | null> {
+  const who = scope ?? (await access());
   const today = todayIso();
   const [trainee, stores, trainers] = await Promise.all([
     prisma.trainee.findUnique({ where: { id }, include: traineeInclude }),
-    prisma.store.findMany({ orderBy: { number: "asc" } }),
+    prisma.store.findMany({
+      where: who.role === "store" ? { id: who.storeId } : undefined,
+      orderBy: { number: "asc" },
+    }),
     prisma.staff.findMany({
-      where: { active: true, qualified: true },
+      where: { active: true, qualified: true, ...(who.role === "store" ? { storeId: who.storeId } : {}) },
     }),
   ]);
   if (!trainee) return null;
+  if (who.role === "store" && trainee.storeId !== who.storeId) return null;
   const record = trainee as TraineeRecord;
   const options: TrainerOption[] = trainers
     .filter((person) => person.storeId === record.storeId)
@@ -304,6 +327,7 @@ export async function createTrainee(input: {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(input.startDate)) throw new Error("Choose a start date.");
   const language = input.language === "es" ? "es" : input.language === "en" ? "en" : "";
   if (!language) throw new Error("Choose English or Spanish.");
+  await ownsStore(input.storeId);
   const store = await prisma.store.findUnique({ where: { id: input.storeId } });
   if (!store) throw new Error("Choose a restaurant.");
   const modules = await prisma.module.findMany({
@@ -336,6 +360,8 @@ export async function updateTrainee(
   if (!["ACTIVE", "PAUSED", "COMPLETED"].includes(input.status)) throw new Error("Unknown status.");
   const current = await prisma.trainee.findUnique({ where: { id } });
   if (!current) throw new Error("Trainee not found.");
+  await ownsStore(current.storeId);
+  await ownsStore(input.storeId);
   const store = await prisma.store.findUnique({ where: { id: input.storeId } });
   if (!store) throw new Error("Choose a restaurant.");
   if (input.status === "COMPLETED") {
@@ -369,7 +395,10 @@ export async function updateTrainee(
   }
 }
 
-export async function deleteTrainee(id: string) {
+export async function deleteTrainee(id: string, scope?: Access) {
+  const trainee = await prisma.trainee.findUnique({ where: { id } });
+  if (!trainee) throw new Error("Trainee not found.");
+  await ownsStore(trainee.storeId, scope);
   await prisma.trainee.delete({ where: { id } });
 }
 
@@ -379,6 +408,7 @@ export async function setTraineeLanguage(id: string, language: "en" | "es") {
     include: { modules: { include: { module: true } } },
   });
   if (!trainee) throw new Error("Trainee not found.");
+  await ownsStore(trainee.storeId);
   if (trainee.language === language) return;
   const nextModules = await prisma.module.findMany({
     where: { language },
@@ -417,6 +447,7 @@ export async function updateProgress(input: {
     include: { trainee: true },
   });
   if (!row) throw new Error("That module is no longer on the path.");
+  await ownsStore(row.trainee.storeId);
   const today = todayIso();
   const scheduledDate = input.scheduledDate.trim();
   if (scheduledDate && !/^\d{4}-\d{2}-\d{2}$/.test(scheduledDate)) throw new Error("Choose a valid date.");
@@ -458,10 +489,13 @@ export async function updateProgress(input: {
 }
 
 export async function getSchedule(filters: { storeNumber?: string; trainerId?: string; month?: string }) {
+  const who = await access();
+  const storeNumber = scopedStoreNumber(who, filters.storeNumber);
   const today = todayIso();
   const month = filters.month && /^\d{4}-\d{2}$/.test(filters.month) ? filters.month : currentMonthKey();
   const [stores, people, rows] = await Promise.all([
     prisma.store.findMany({
+      where: storeNumber ? { number: storeNumber } : undefined,
       orderBy: { number: "asc" },
       include: { staff: { where: { isGm: true, active: true } } },
     }),
@@ -469,7 +503,7 @@ export async function getSchedule(filters: { storeNumber?: string; trainerId?: s
       where: {
         active: true,
         qualified: true,
-        ...(filters.storeNumber ? { store: { number: filters.storeNumber } } : {}),
+        ...(storeNumber ? { store: { number: storeNumber } } : {}),
       },
       include: { store: true },
     }),
@@ -479,7 +513,7 @@ export async function getSchedule(filters: { storeNumber?: string; trainerId?: s
         scheduledDate: { not: null },
         trainee: {
           status: { in: ["ACTIVE", "PAUSED"] },
-          ...(filters.storeNumber ? { store: { number: filters.storeNumber } } : {}),
+          ...(storeNumber ? { store: { number: storeNumber } } : {}),
         },
         ...(filters.trainerId ? { trainerId: filters.trainerId } : {}),
       },
@@ -522,10 +556,12 @@ export async function getSchedule(filters: { storeNumber?: string; trainerId?: s
         a.storeNumber.localeCompare(b.storeNumber) ||
         a.traineeName.localeCompare(b.traineeName),
     );
+  if (filters.trainerId && !people.some((person) => person.id === filters.trainerId)) notFound();
   return {
     today,
     month,
     sessions,
+    locked: who.role === "store",
     stores: stores.map((store) => ({
       id: store.id,
       number: store.number,
@@ -546,6 +582,7 @@ export async function getSchedule(filters: { storeNumber?: string; trainerId?: s
 }
 
 export async function listDirectory() {
+  await requireAdmin();
   const stores = await prisma.store.findMany({
     orderBy: { number: "asc" },
     include: { staff: { orderBy: [{ active: "desc" }, { isGm: "desc" }, { name: "asc" }] } },
@@ -584,6 +621,7 @@ export async function createStaff(input: {
   isGm: boolean;
   qualified: boolean;
 }) {
+  await ownsStore(input.storeId);
   const name = input.name.trim();
   if (name.length < 2) throw new Error("Enter a name.");
   const store = await prisma.store.findUnique({ where: { id: input.storeId } });
@@ -607,6 +645,9 @@ export async function updateStaff(
   id: string,
   input: { name: string; position: string; isGm: boolean; qualified: boolean; active: boolean },
 ) {
+  const current = await prisma.staff.findUnique({ where: { id } });
+  if (!current) throw new Error("That person is not on the roster.");
+  await ownsStore(current.storeId);
   const name = input.name.trim();
   if (name.length < 2) throw new Error("Enter a name.");
   await prisma.staff.update({
@@ -658,6 +699,7 @@ export async function updateModuleTemplate(
     note: string;
   },
 ) {
+  await requireAdmin();
   const name = input.name.trim();
   if (!name) throw new Error("Enter a module name.");
   const videoCount = input.videoCount.trim() === "" ? null : Number(input.videoCount);
@@ -718,7 +760,9 @@ export async function exportTraineeCsv(id: string) {
 }
 
 export async function exportAllCsv() {
+  const who = await access();
   const trainees = await prisma.trainee.findMany({
+    where: who.role === "store" ? { storeId: who.storeId } : undefined,
     include: traineeInclude,
     orderBy: [{ store: { number: "asc" } }, { name: "asc" }],
   });
@@ -1113,11 +1157,13 @@ function previewFrom(mode: "bulk" | "single", plans: Plan[]): ImportPreview {
 }
 
 export async function previewImport(csv: string, single: SingleContext | null) {
+  await requireAdmin();
   const { mode, plans } = await buildPlans(csv, single);
   return previewFrom(mode, plans);
 }
 
 export async function commitImport(csv: string, single: SingleContext | null) {
+  await requireAdmin();
   const { mode, plans } = await buildPlans(csv, single);
   const preview = previewFrom(mode, plans);
   const good = plans.filter((plan) => !plan.issue && plan.moduleId);
@@ -1193,6 +1239,7 @@ export async function commitImport(csv: string, single: SingleContext | null) {
 const REPORT_SOURCES = ["csv", "google-sheets"];
 
 export async function previewDevelopmentReport(csv: string) {
+  await requireAdmin();
   const parsed = parseDevelopmentReport(csv);
   const stores = await prisma.store.findMany();
   const known = new Set(stores.map((store) => store.number));
@@ -1210,11 +1257,13 @@ export async function previewDevelopmentReport(csv: string) {
 }
 
 export async function syncDevelopmentReport(source: DevelopmentReportSource) {
+  await requireAdmin();
   const entries = await source.pull();
   return applyDevelopmentReport(entries, source.id);
 }
 
 export async function applyDevelopmentReport(entries: RosterEntry[], sourceId: "csv" | "google-sheets") {
+  await requireAdmin();
   const stores = await prisma.store.findMany();
   const byNumber = new Map(stores.map((store) => [store.number, store]));
   let createdCount = 0;
@@ -1310,6 +1359,7 @@ export async function applyDevelopmentReport(entries: RosterEntry[], sourceId: "
 }
 
 export async function getRosterPage() {
+  await requireAdmin();
   const [stores, sync] = await Promise.all([
     prisma.store.findMany({ orderBy: { number: "asc" }, include: { staff: true } }),
     prisma.rosterSync.findFirst({ orderBy: { createdAt: "desc" } }),
@@ -1342,4 +1392,52 @@ export async function getRosterPage() {
         }
       : null,
   };
+}
+
+export async function listStoreAccess() {
+  await requireAdmin();
+  const stores = await prisma.store.findMany({ orderBy: { number: "asc" } });
+  return stores.map((store) => ({
+    id: store.id,
+    number: store.number,
+    hasPassword: Boolean(store.passwordHash),
+  }));
+}
+
+export async function matchLogin(password: string) {
+  const adminPassword = process.env.APP_PASSWORD;
+  const stores = await prisma.store.findMany({ where: { passwordHash: { not: null } } });
+  let storeMatch: { id: string; version: number } | null = null;
+  for (const store of stores) {
+    if (store.passwordHash && (await verifyPassword(password, store.passwordHash))) {
+      storeMatch = { id: store.id, version: store.sessionVersion };
+    }
+  }
+  if (adminPassword && safeEqual(password, adminPassword)) return { role: "admin" as const };
+  if (storeMatch) return { role: "store" as const, storeId: storeMatch.id, version: storeMatch.version };
+  return null;
+}
+
+export async function setStorePassword(storeId: string, password: string, confirm: string) {
+  await requireAdmin();
+  if (password.length < 8) throw new Error("Use at least 8 characters.");
+  if (password !== confirm) throw new Error("Type the same password in both fields.");
+  const adminPassword = process.env.APP_PASSWORD;
+  if (adminPassword && safeEqual(password, adminPassword)) {
+    throw new Error("Choose a password that is different from the admin password.");
+  }
+  const store = await prisma.store.findUnique({ where: { id: storeId } });
+  if (!store) throw new Error("That restaurant is not in the tracker.");
+  const others = await prisma.store.findMany({
+    where: { passwordHash: { not: null }, id: { not: storeId } },
+  });
+  for (const other of others) {
+    if (other.passwordHash && (await verifyPassword(password, other.passwordHash))) {
+      throw new Error("Choose a password that is different from every other restaurant.");
+    }
+  }
+  await prisma.store.update({
+    where: { id: storeId },
+    data: { passwordHash: await hashPassword(password), sessionVersion: { increment: 1 } },
+  });
 }

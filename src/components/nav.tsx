@@ -27,23 +27,25 @@ const links = [
   },
 ];
 
-export function SideNav() {
+export function SideNav({ showAdmin = true }: { showAdmin?: boolean }) {
+  const items = showAdmin ? links : links.filter((link) => link.href !== "/admin");
   return (
     <nav className="flex flex-1 flex-col gap-1 px-3 py-4" aria-label="Main">
-      {links.map((link) => (
+      {items.map((link) => (
         <NavItem key={link.href} {...link} />
       ))}
     </nav>
   );
 }
 
-export function TabNav() {
+export function TabNav({ showAdmin = true }: { showAdmin?: boolean }) {
+  const items = showAdmin ? links : links.filter((link) => link.href !== "/admin");
   return (
     <nav
-      className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-5 border-t border-white/10 bg-bark px-1 pb-[max(0.4rem,env(safe-area-inset-bottom))] pt-1 lg:hidden"
+      className={`fixed inset-x-0 bottom-0 z-20 grid border-t border-white/10 bg-bark px-1 pb-[max(0.4rem,env(safe-area-inset-bottom))] pt-1 lg:hidden ${showAdmin ? "grid-cols-5" : "grid-cols-4"}`}
       aria-label="Main"
     >
-      {links.map((link) => (
+      {items.map((link) => (
         <NavItem key={link.href} {...link} compact />
       ))}
     </nav>

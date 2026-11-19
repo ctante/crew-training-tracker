@@ -35,7 +35,7 @@ export default async function SchedulePage({
   const focus = selected && selected.startsWith(data.month) ? upcoming.filter((session) => session.date === selected).concat(
     monthSessions.filter((session) => session.date === selected && session.overdue),
   ) : null;
-  const store = data.stores.find((item) => item.number === storeNumber);
+  const store = data.locked ? data.stores[0] : data.stores.find((item) => item.number === storeNumber);
   const grouped = groupByDate(focus ?? upcoming);
 
   return (
@@ -50,10 +50,11 @@ export default async function SchedulePage({
         }
       />
 
+      {data.locked ? null : (
       <div className="flex gap-2 overflow-x-auto pb-2">
-        <Filter href={withParams("/schedule", current, { store: null, trainer: null })} active={!storeNumber}>
-          All
-        </Filter>
+          <Filter href={withParams("/schedule", current, { store: null, trainer: null })} active={!storeNumber}>
+            All
+          </Filter>
         {data.stores.map((item) => (
           <Filter
             key={item.number}
@@ -64,6 +65,7 @@ export default async function SchedulePage({
           </Filter>
         ))}
       </div>
+      )}
 
       <form className="mt-3 flex flex-wrap items-end gap-3" action="/schedule">
         {storeNumber ? <input type="hidden" name="store" value={storeNumber} /> : null}

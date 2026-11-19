@@ -6,7 +6,9 @@ import { redirect } from "next/navigation";
 import {
   commitImport,
   createStaff,
+  matchLogin,
   previewDevelopmentReport,
+  setStorePassword,
   syncDevelopmentReport,
   createTrainee,
   deleteTrainee,
@@ -19,10 +21,11 @@ import {
   updateTrainee,
   type SingleContext,
 } from "@/lib/data";
+import { requireAdmin } from "@/lib/access";
 import { prisma } from "@/lib/db";
 import { googleSheetsDevelopmentReportSource } from "@/lib/roster/google-sheets";
 import { csvDevelopmentReportSource } from "@/lib/roster/source";
-import { SESSION_COOKIE, createSessionToken, safeEqual, safeNextPath, sessionCookieOptions } from "@/lib/session";
+import { SESSION_COOKIE, createSessionToken, safeNextPath, sessionCookieOptions } from "@/lib/session";
 import { seedDatabase } from "@/lib/seed-run";
 
 function message(error: unknown) {
@@ -219,13 +222,14 @@ export async function syncGoogleRosterAction() {
 }
 
 export async function signInAction(input: { password: string; nextPath: string }) {
-  const expected = process.env.APP_PASSWORD;
-  if (!expected) return { error: "Access is not configured yet. Add APP_PASSWORD on the host." };
+  if (!process.env.APP_PASSWORD) return { error: "Access is not configured yet. Add APP_PASSWORD on the host." };
   if (!process.env.SESSION_SECRET) return { error: "Access is not configured yet. Add SESSION_SECRET on the host." };
-  if (!safeEqual(input.password, expected)) return { error: "That password does not match." };
+  const match = await matchLogin(input.password);
+  if (!match) return { error: "That password does not match." };
   const jar = await cookies();
-  jar.set(SESSION_COOKIE, await createSessionToken(), sessionCookieOptions());
-  redirect(safeNextPath(input.nextPath));
+  jar.set(SESSION_COOKIE, await createSessionToken(match), sessionCookieOptions());
+  const nextPath = safeNextPath(input.nextPath);
+  redirect(match.role === "store" && nextPath.startsWith("/admin") ? "/" : nextPath);
 }
 
 export async function signOutAction() {
@@ -234,7 +238,18 @@ export async function signOutAction() {
   redirect("/login");
 }
 
+export async function setStorePasswordAction(formData: FormData) {
+  const storeId = String(formData.get("storeId") || "");
+  try {
+    await setStorePassword(storeId, String(formData.get("password") || ""), String(formData.get("confirm") || ""));
+  } catch (error) {
+    redirect(`/admin/access?error=${encodeURIComponent(message(error))}#store-${storeId}`);
+  }
+  redirect(`/admin/access?saved=1#store-${storeId}`);
+}
+
 export async function resetSampleAction(formData: FormData) {
+  await requireAdmin();
   if (formData.get("confirm") !== "yes") {
     redirect("/admin?error=Check+the+box+to+replace+everything+with+the+sample+set.");
   }

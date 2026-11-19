@@ -5,8 +5,13 @@ export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   if (pathname === "/login" || pathname.startsWith("/login/")) return NextResponse.next();
 
-  const valid = await verifySessionToken(request.cookies.get(SESSION_COOKIE)?.value);
-  if (valid) return NextResponse.next();
+  const session = await verifySessionToken(request.cookies.get(SESSION_COOKIE)?.value);
+  if (session) {
+    if (session.role === "store" && (pathname === "/admin" || pathname.startsWith("/admin/"))) {
+      return NextResponse.redirect(new URL("/", request.url));
+    }
+    return NextResponse.next();
+  }
 
   const login = new URL("/login", request.url);
   if (pathname !== "/") login.searchParams.set("next", pathname);
