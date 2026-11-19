@@ -36,11 +36,11 @@ export default async function StoreAccessPage({
               <input type="hidden" name="storeId" value={store.id} />
               <label className="text-sm font-semibold">
                 New password
-                <input className={`${fieldClass} mt-1`} type="password" name="password" autoComplete="new-password" minLength={8} required />
+                <input className={`${fieldClass} mt-1`} type="password" name="password" autoComplete="new-password" required />
               </label>
               <label className="text-sm font-semibold">
                 Type it again
-                <input className={`${fieldClass} mt-1`} type="password" name="confirm" autoComplete="new-password" minLength={8} required />
+                <input className={`${fieldClass} mt-1`} type="password" name="confirm" autoComplete="new-password" required />
               </label>
               <button className={primaryButton} type="submit">
                 {store.hasPassword ? "Reset password" : "Set password"}

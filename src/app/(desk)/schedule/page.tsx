@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { Suspense } from "react";
+import { TraineeSearch } from "@/components/trainee-search";
 import { Flag, PageHeader } from "@/components/ui";
 import { groupByTrainerPosition } from "@/lib/constants";
 import { getSchedule } from "@/lib/data";
@@ -21,12 +23,14 @@ export default async function SchedulePage({
   const trainerId = one(params.trainer);
   const selected = one(params.date);
   const tab = one(params.tab) || "scheduled";
+  const query = one(params.q);
   const data = await getSchedule({
     storeNumber,
     trainerId,
     month: one(params.month),
+    query,
   });
-  const current = { store: storeNumber, trainer: trainerId, month: data.month, date: selected, tab };
+  const current = { store: storeNumber, trainer: trainerId, month: data.month, date: selected, tab, q: query };
   const monthSessions = data.sessions.filter((session) => session.date.startsWith(data.month));
   const overdue = data.sessions.filter((session) => session.overdue);
   const upcoming = monthSessions.filter((session) => session.date >= data.today);
@@ -49,6 +53,12 @@ export default async function SchedulePage({
             : "Upcoming training dates that are scheduled and still open."
         }
       />
+
+      <div className="mb-4 max-w-xs">
+        <Suspense fallback={null}>
+          <TraineeSearch />
+        </Suspense>
+      </div>
 
       {data.locked ? null : (
       <div className="flex gap-2 overflow-x-auto pb-2">

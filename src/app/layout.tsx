@@ -16,10 +16,10 @@ const sourceSans = Source_Sans_3({
 
 export const metadata: Metadata = {
   title: {
-    default: "Crew Training Tracker",
-    template: "%s · Crew Training Tracker",
+    default: "Individual Training System (ITS)",
+    template: "%s · Individual Training System (ITS)",
   },
-  description: "Individual training schedules for crew across 10 restaurants.",
+  description: "Individual Training System (ITS) for crew across 10 restaurants.",
   robots: { index: false, follow: false },
 };
 

@@ -1,6 +1,6 @@
-# Deploy Crew Training Tracker on Vercel
+# Deploy Individual Training System (ITS) on Vercel
 
-The live site is the GitHub repo `ctante/crew-training-tracker`, branch `main`. Vercel builds that branch. The person using the tracker only needs the site URL and the team password.
+The live site is the GitHub repo `ctante/crew-training-tracker`, branch `main`. Vercel builds that branch. The person using ITS only needs the site URL and the team password. The repository name, Vercel project, and site URL stay as they are.
 
 ## 1. Create the Vercel project
 
@@ -60,7 +60,7 @@ Open the Vercel URL on a phone. The sign-in page asks for a password. The cookie
 
 `APP_PASSWORD` is the admin password. It is the only password that can see every restaurant and the Admin pages.
 
-After the site is up, sign in with that admin password. Open **Admin**, then **Store passwords** (`/admin/access`). Each of the 10 restaurants has its own password. Type a password, type it again, and save. The page shows “Password set” or “No password”. It never shows the password again. A restaurant with no password cannot sign in. Use a different password for each restaurant, and do not reuse the admin password. When you save a new password, anyone already signed in as that restaurant is signed out.
+After the site is up, sign in with that admin password. Open **Admin**, then **Store passwords** (`/admin/access`). Each of the 10 restaurants has its own password. Type a password, type it again, and save. The page shows “Password set” or “No password”. It never shows the password again. A restaurant with no password cannot sign in. Use a different password for each restaurant, and do not reuse the admin password. Any password of at least one character is allowed. When you save a new password, anyone already signed in as that restaurant is signed out.
 
 Give each restaurant only its own password. They will see that restaurant’s trainees, trainers, schedule, and progress. They will not see the other restaurants or the import and roster pages.
 

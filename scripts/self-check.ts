@@ -362,6 +362,10 @@ Zed Unqualified,05207,Shift Manager,No
     if (signedIn?.role === "store") assert.equal(signedIn.storeId, storeA.id);
     await assert.rejects(() => setStorePassword(storeB.id, "restaurant-pass-1", "restaurant-pass-1"));
     await assert.rejects(() => setStorePassword(storeA.id, process.env.APP_PASSWORD ?? "", process.env.APP_PASSWORD ?? ""));
+    await setStorePassword(storeA.id, "a", "a");
+    const shortLogin = await matchLogin("a");
+    assert.equal(shortLogin?.role, "store");
+    await assert.rejects(() => setStorePassword(storeA.id, "", ""));
     await setStorePassword(storeA.id, "restaurant-pass-2", "restaurant-pass-2");
     const rotated = await prisma.store.findUniqueOrThrow({ where: { id: storeA.id } });
     assert.ok(rotated.sessionVersion > withPassword.sessionVersion);
