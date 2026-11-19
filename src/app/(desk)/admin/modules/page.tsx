@@ -1,9 +1,11 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { translateMissingAction } from "@/app/actions";
 import { AddModuleForm } from "@/components/add-module-form";
 import { AdminNav } from "@/components/admin-nav";
 import { ModuleEditor } from "@/components/module-editor";
 import { Flash, PageHeader, ghostButton } from "@/components/ui";
+import { access, allows } from "@/lib/access";
 import { listModules } from "@/lib/data";
 import { one } from "@/lib/format";
 
@@ -16,6 +18,8 @@ export default async function ModulesAdminPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  const who = await access();
+  if (!allows(who, "modules")) redirect("/");
   const params = await searchParams;
   const language = one(params.lang) === "es" ? "es" : "en";
   const modules = await listModules(language);

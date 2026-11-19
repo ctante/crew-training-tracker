@@ -1,6 +1,8 @@
+import { redirect } from "next/navigation";
 import { setStorePasswordAction } from "@/app/actions";
 import { AdminNav } from "@/components/admin-nav";
 import { Flash, PageHeader, fieldClass, primaryButton } from "@/components/ui";
+import { access, allows } from "@/lib/access";
 import { listStoreAccess } from "@/lib/data";
 import { one } from "@/lib/format";
 
@@ -13,6 +15,8 @@ export default async function StoreAccessPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  const who = await access();
+  if (!allows(who, "store_logins")) redirect("/");
   const params = await searchParams;
   const stores = await listStoreAccess();
 
@@ -22,7 +26,7 @@ export default async function StoreAccessPage({
       <PageHeader
         kicker="Admin"
         title="Store passwords"
-        description="Each restaurant signs in with its own password and sees only that restaurant. The admin password still opens every restaurant. A password is not shown again after you save it. Saving a new one signs that restaurant out everywhere."
+        description="Each restaurant has a shared User account. The username is the restaurant number. People can also leave the username blank and enter this password. Saving a new password signs that restaurant out. The password is not shown again."
       />
       <Flash error={one(params.error)} notice={one(params.saved) ? "Password saved. It will not be shown again." : ""} />
       <div className="space-y-4">

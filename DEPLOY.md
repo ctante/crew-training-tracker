@@ -2,11 +2,11 @@
 
 The live site is the GitHub repo `ctante/crew-training-tracker`, branch `main`, at https://mcd-its.vercel.app. Vercel builds that branch for production. The person using ITS only needs that URL and the team password. The repository name and Vercel project stay as they are.
 
-The beta site is branch `beta`, meant to be served at https://crew-training-tracker.vercel.app. New pull requests target `beta`. Merge `beta` into `main` only when promoting to the live restaurants. The beta site shows a BETA / TEST SITE banner because `NEXT_PUBLIC_BETA=1` is set as a Preview variable for the `beta` branch only.
+The beta site is branch `beta` at https://crew-training-tracker.vercel.app. New pull requests target `beta`. Merge `beta` into `main` only when promoting to the live restaurants. The beta site shows a BETA / TEST SITE banner because `NEXT_PUBLIC_BETA=1` is set as a Preview variable for the `beta` branch only.
 
-Beta builds are paused on purpose until that address uses a separate database. The Vercel ignored build step skips a build when the git branch is `beta`, so a beta deploy cannot run migrations or the seed against the live database. After the Neon connection creates a database branch for Preview deployments, clear that ignored build step and redeploy `beta`.
+Beta uses its own Neon database. The Neon connection creates a database branch for Preview deployments only, and Production stays on the live branch. Before migrations run, a beta build checks the database host. If that host is the live production branch, the build stops and does not migrate or seed.
 
-The weekly roster sync must call https://mcd-its.vercel.app/api/sync/roster. Do not leave it on crew-training-tracker.vercel.app once that address is the beta site.
+The weekly roster sync must call https://mcd-its.vercel.app/api/sync/roster. The crew-training-tracker address is the beta site, so a sync pointed there would change the test database instead of the live one.
 
 ## 1. Create the Vercel project
 
@@ -51,7 +51,7 @@ npm run build
 which runs:
 
 ```bash
-prisma migrate deploy && tsx prisma/seed.ts && next build
+node scripts/assert-beta-db.mjs && prisma migrate deploy && tsx prisma/seed.ts && next build
 ```
 
 The migration creates the tables. The seed adds the 10 restaurants and the English and Spanish module catalog with Campus links. It does not add sample trainees or sample trainers unless `SEED_SAMPLE_DATA=true` and the database has no trainees yet. Running the build again does not duplicate restaurants or modules, and it does not erase people you add later.
@@ -124,5 +124,6 @@ Admin → Trainer roster shows `Last roster sync: <date and time ET>, X added, Y
 - **`DATABASE_URL_UNPOOLED` is actually the pooled string.** Migrations can fail with a prepared-statement or advisory-lock error. Use the Neon connection string whose host does not contain `-pooler`.
 - **The Vercel project build command was changed to `next build`.** Tables are never created, and the first page load errors. Set the build command back to `npm run build`.
 - **`APP_PASSWORD` or `SESSION_SECRET` missing.** The build still succeeds. The sign-in page says access is not configured. Add both variables and redeploy, or add them and open the site again. A new deployment is only required if the variables were missing at runtime and the function cached the empty value; adding them in the dashboard and redeploying is the reliable step.
+- **A beta build says it is pointed at the production database.** The Neon preview branch was not used. Leave that deployment failed. Turn Create Database Branch For Deployment back to Preview only, then redeploy `beta`. Do not point the beta site at the live database to get past the check.
 - **Neon is still waking up.** The free database sleeps. The first build or first visit can be slow. Run the deploy again if the migration times out once.
 - **Sample people are missing.** That is expected. Leave `SEED_SAMPLE_DATA` unset. Add real trainees from the site, or set the flag on an empty database and redeploy once if you want the fictional set.

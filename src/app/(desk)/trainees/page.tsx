@@ -41,9 +41,11 @@ export default async function TraineesPage({
         title="Trainees"
         description="In progress is anyone who has not finished Foundation plus every path they have. Completed means those sections are all done."
         actions={
-          <Link href="/trainees/new" className="inline-flex min-h-11 items-center rounded-full bg-brick px-4 text-sm font-semibold text-white">
-            Add trainee
-          </Link>
+          data.canManageTrainees ? (
+            <Link href="/trainees/new" className="inline-flex min-h-11 items-center rounded-full bg-brick px-4 text-sm font-semibold text-white">
+              Add trainee
+            </Link>
+          ) : null
         }
       />
       <div className="mb-4 max-w-xs">

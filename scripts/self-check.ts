@@ -1,11 +1,13 @@
 import assert from "node:assert/strict";
 import { compareTrainers, trainerPositionRank } from "../src/lib/constants";
-import { addCatalogModule, addSecondPath, commitImport, createTrainee, deleteTrainee, exportTraineeCsv, getDashboard, getScheduledSessions, getTrainee, markModuleLinkOk, matchLogin, moveCatalogModule, moveCatalogModuleToSection, previewImport, removeCatalogModule, setStorePassword, syncDevelopmentReport, updateModuleTemplate } from "../src/lib/data";
+import { addCatalogModule, addSecondPath, commitImport, createTrainee, deleteTrainee, exportTraineeCsv, getDashboard, getScheduledSessions, getTrainee, markModuleLinkOk, matchLogin, updateProgress, moveCatalogModule, moveCatalogModuleToSection, previewImport, removeCatalogModule, setStorePassword, syncDevelopmentReport, updateModuleTemplate } from "../src/lib/data";
 import { parseModuleLinks } from "../src/lib/drive";
 import { spanishTextUpdate } from "../src/lib/translate";
 import { getReports } from "../src/lib/reports";
 import { prisma } from "../src/lib/db";
 import { daysBetween, formatLongDate, parseLooseDate, selectReportStores, sessionWindow } from "../src/lib/format";
+import { CODE_ROLE_DEFAULTS, effectivePermissions, overridesFor, roleDefaults } from "../src/lib/permissions";
+import { saveAppUser } from "../src/lib/users";
 import { loadModuleSeeds } from "../src/lib/module-csv";
 import { inferPathChoice, summarize, trainingPaths } from "../src/lib/progress";
 import { parseDevelopmentReport } from "../src/lib/roster/parse";
@@ -443,13 +445,18 @@ Zed Unqualified,05207,Shift Manager,No
     assert.equal(withPassword.passwordHash?.includes("restaurant-pass-1"), false);
     assert.ok(withPassword.sessionVersion > versionBefore);
     const signedIn = await matchLogin("restaurant-pass-1");
-    assert.equal(signedIn?.role, "store");
-    if (signedIn?.role === "store") assert.equal(signedIn.storeId, storeA.id);
+    assert.equal(signedIn?.role, "user");
+    if (signedIn?.role === "user") {
+      const account = await prisma.appUser.findUnique({ where: { id: signedIn.userId }, include: { stores: true } });
+      assert.equal(account?.role, "USER");
+      assert.equal(account?.login, storeA.number);
+      assert.equal(account?.stores[0]?.storeId, storeA.id);
+    }
     await assert.rejects(() => setStorePassword(storeB.id, "restaurant-pass-1", "restaurant-pass-1"));
     await assert.rejects(() => setStorePassword(storeA.id, process.env.APP_PASSWORD ?? "", process.env.APP_PASSWORD ?? ""));
     await setStorePassword(storeA.id, "a", "a");
     const shortLogin = await matchLogin("a");
-    assert.equal(shortLogin?.role, "store");
+    assert.equal(shortLogin?.role, "user");
     await assert.rejects(() => setStorePassword(storeA.id, "", ""));
     await setStorePassword(storeA.id, "restaurant-pass-2", "restaurant-pass-2");
     const rotated = await prisma.store.findUniqueOrThrow({ where: { id: storeA.id } });
@@ -457,7 +464,111 @@ Zed Unqualified,05207,Shift Manager,No
     assert.equal(await matchLogin("restaurant-pass-1"), null);
     const adminLogin = await matchLogin(process.env.APP_PASSWORD ?? "");
     assert.equal(adminLogin?.role, "admin");
+    assert.equal(roleDefaults("USER").sign_off, true);
+    assert.equal(roleDefaults("USER").schedule, false);
+    assert.equal(roleDefaults("MANAGER").schedule, true);
+    assert.equal(roleDefaults("MANAGER").reports, true);
+    assert.equal(roleDefaults("MANAGER").users, false);
+    assert.equal(roleDefaults("SUPERVISOR").users, true);
+    assert.equal(roleDefaults("SUPERVISOR").view_stores, true);
+    assert.equal(roleDefaults("SUPERVISOR").modules, false);
+    assert.equal(roleDefaults("ADMIN").store_logins, true);
+    const granted = effectivePermissions("USER", { schedule: true });
+    assert.equal(granted.schedule, true);
+    assert.deepEqual(overridesFor("USER", granted), { schedule: true });
+    const supervisor = {
+      role: "supervisor" as const,
+      userId: "supervisor-check",
+      name: "Supervisor Check",
+      storeIds: [storeA.id],
+      storeNumbers: [storeA.number],
+      permissions: roleDefaults("SUPERVISOR"),
+    };
+    const managerId = await saveAppUser(
+      supervisor,
+      {
+        name: "Manager Check",
+        login: "manager-check",
+        password: "manager-pass-check",
+        confirm: "manager-pass-check",
+        role: "MANAGER",
+        storeIds: [storeA.id],
+        active: true,
+        permissions: { ...roleDefaults("MANAGER"), users: true, modules: true },
+      },
+      CODE_ROLE_DEFAULTS,
+    );
+    const manager = await prisma.appUser.findUniqueOrThrow({ where: { id: managerId } });
+    const managerPermissions = effectivePermissions("MANAGER", manager.permissionOverrides, CODE_ROLE_DEFAULTS);
+    assert.equal(managerPermissions.users, false);
+    assert.equal(managerPermissions.modules, false);
+    assert.equal(managerPermissions.schedule, true);
+    await assert.rejects(() =>
+      saveAppUser(
+        supervisor,
+        {
+          name: "Admin Check",
+          login: "admin-check-user",
+          password: "admin-pass-check",
+          confirm: "admin-pass-check",
+          role: "ADMIN",
+          storeIds: [],
+          active: true,
+          permissions: roleDefaults("ADMIN"),
+        },
+        CODE_ROLE_DEFAULTS,
+      ),
+    );
+    const onlyAdmin = await saveAppUser(
+      { role: "admin", permissions: roleDefaults("ADMIN") },
+      {
+        name: "Only Admin",
+        login: "only-admin-check",
+        password: "only-admin-pass",
+        confirm: "only-admin-pass",
+        role: "ADMIN",
+        storeIds: [],
+        active: true,
+        permissions: roleDefaults("ADMIN"),
+      },
+      CODE_ROLE_DEFAULTS,
+    );
+    await assert.rejects(() =>
+      saveAppUser(
+        { role: "admin", permissions: roleDefaults("ADMIN") },
+        {
+          id: onlyAdmin,
+          name: "Only Admin",
+          login: "only-admin-check",
+          password: "",
+          confirm: "",
+          role: "USER",
+          storeIds: [storeA.id],
+          active: false,
+          permissions: roleDefaults("USER"),
+        },
+        CODE_ROLE_DEFAULTS,
+      ),
+    );
+    const row = await prisma.traineeModule.findFirst({ where: { traineeId: traineeB.id } });
+    assert.ok(row);
+    await assert.rejects(() =>
+      updateProgress(
+        {
+          traineeModuleId: row.id,
+          scheduledDate: row.scheduledDate === "2099-01-01" ? "2099-01-02" : "2099-01-01",
+          trainerValue: "",
+          completed: row.completed,
+          completedDate: row.completedDate ?? "",
+          notes: row.notes,
+        },
+        { role: "user", userId: "user-check", name: "User Check", storeId: storeB.id, storeNumber: storeB.number, permissions: roleDefaults("USER") },
+      ),
+    );
   } finally {
+    await prisma.appUser.deleteMany({
+      where: { login: { in: [storeA.number, storeB.number, "manager-check", "admin-check-user", "only-admin-check"] } },
+    });
     await prisma.store.update({ where: { id: storeA.id }, data: { passwordHash: null } });
     await prisma.store.update({ where: { id: storeB.id }, data: { passwordHash: null } });
   }

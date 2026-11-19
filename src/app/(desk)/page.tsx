@@ -49,9 +49,11 @@ export default async function HomePage({
         title="Training board"
         description="Foundation plus Service or Production. Overdue sessions and stalled trainees rise to the top."
         actions={
-          <Link href="/trainees/new" className="hidden min-h-11 items-center rounded-full bg-brick px-4 text-sm font-semibold text-white lg:inline-flex">
-            Add trainee
-          </Link>
+          data.canManageTrainees ? (
+            <Link href="/trainees/new" className="hidden min-h-11 items-center rounded-full bg-brick px-4 text-sm font-semibold text-white lg:inline-flex">
+              Add trainee
+            </Link>
+          ) : null
         }
       />
       {reset ? (

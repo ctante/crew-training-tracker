@@ -1,4 +1,5 @@
-import { access } from "./access";
+import { redirect } from "next/navigation";
+import { access, allows, canSeeManyStores, visibleStoreNumbers } from "./access";
 import { toCsv } from "./csv";
 import { SECTION_TITLES, type SectionId } from "./constants";
 import { prisma } from "./db";
@@ -99,16 +100,18 @@ export async function getReports(filters: {
   to?: string;
 }) {
   const who = await access();
+  if (!allows(who, "reports")) redirect("/");
   const today = todayIso();
   const window =
     !filters.range || filters.range === "all"
       ? { range: "all" as const, start: "1970-01-01", end: "2999-12-31" }
       : sessionWindow(today, filters.range, filters.from, filters.to);
   const allStores = await prisma.store.findMany({ orderBy: { number: "asc" } });
-  const known = allStores.map((store) => store.number);
+  const allowed = visibleStoreNumbers(who);
+  const known = allStores.map((store) => store.number).filter((number) => !allowed || allowed.includes(number));
   const selected = selectReportStores({
-    role: who.role,
-    ownStore: who.role === "store" ? who.storeNumber : undefined,
+    role: canSeeManyStores(who) ? "admin" : "store",
+    ownStore: canSeeManyStores(who) ? undefined : visibleStoreNumbers(who)?.[0],
     requested: filters.storeNumbers,
     entireOrg: filters.entireOrg,
     known,
@@ -199,8 +202,13 @@ export async function getReports(filters: {
     };
   });
   const completionTotal: CompletionRow = {
-    storeNumber:
-      who.role === "store" ? "Total" : selected.length === known.length ? "Entire org" : "Selected stores",
+    storeNumber: !canSeeManyStores(who)
+      ? "Total"
+      : selected.length === known.length
+        ? who.role === "admin"
+          ? "Entire org"
+          : "Your restaurants"
+        : "Selected stores",
     trainees: completion.reduce((sum, row) => sum + row.trainees, 0),
     average: bundles.length ? Math.round(bundles.reduce((sum, row) => sum + row.percent, 0) / bundles.length) : 0,
     completed: completion.reduce((sum, row) => sum + row.completed, 0),
@@ -363,9 +371,10 @@ export async function getReports(filters: {
 
   return {
     today,
-    locked: who.role === "store",
-    entireOrg: who.role === "admin" && selected.length === known.length,
-    stores: allStores.map((store) => store.number),
+    locked: !canSeeManyStores(who),
+    entireOrg: canSeeManyStores(who) && selected.length === known.length,
+    orgWide: who.role === "admin",
+    stores: known,
     selected,
     range: window.range,
     start: window.start,

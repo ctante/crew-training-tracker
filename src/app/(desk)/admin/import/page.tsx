@@ -1,7 +1,9 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { AdminNav } from "@/components/admin-nav";
 import { ImportPanel } from "@/components/import-panel";
 import { PageHeader, ghostButton } from "@/components/ui";
+import { access, allows } from "@/lib/access";
 import { listStoreChoices } from "@/lib/data";
 
 export const dynamic = "force-dynamic";
@@ -9,6 +11,8 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Import and export" };
 
 export default async function ImportPage() {
+  const who = await access();
+  if (!allows(who, "roster_import")) redirect("/");
   const stores = await listStoreChoices();
   return (
     <div>

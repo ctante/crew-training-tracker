@@ -1,10 +1,22 @@
 import type { Prisma } from "@prisma/client";
 import { notFound } from "next/navigation";
-import { access, ownsStore, requireAdmin, scopedStoreNumber, type Access } from "./access";
+import {
+  access,
+  allows,
+  assertPermission,
+  canSeeManyStores,
+  ownsStore,
+  requireTraineeEditor,
+  seesStoreId,
+  storeIdWhere,
+  storeNumberWhere,
+  type Access,
+} from "./access";
 import { SECTIONS, blockStart, canonicalTrainerPosition, compareTrainers, moduleKind, type SectionId } from "./constants";
 import { parseCsv, toCsv } from "./csv";
 import { prisma } from "./db";
 import { hashPassword, verifyPassword } from "./passwords";
+import { matchSharedStorePassword, upsertSharedStoreUser } from "./users";
 import { safeEqual } from "./session";
 import {
   currentMonthKey,
@@ -278,8 +290,9 @@ async function syncStatus(traineeId: string) {
 
 export async function countSampleTrainees() {
   const who = await access();
+  const stores = storeIdWhere(who);
   return prisma.trainee.count({
-    where: { isSample: true, ...(who.role === "store" ? { storeId: who.storeId } : {}) },
+    where: { isSample: true, ...(stores ? { store: stores } : {}) },
   });
 }
 
@@ -290,18 +303,18 @@ export async function getDashboard(filters: {
   query?: string;
 }) {
   const who = await access();
-  const storeNumber = scopedStoreNumber(who, filters.storeNumber);
+  const storeWhere = storeNumberWhere(who, filters.storeNumber);
   const today = todayIso();
   const [stores, trainees] = await Promise.all([
     prisma.store.findMany({
-      where: storeNumber ? { number: storeNumber } : undefined,
+      where: storeWhere,
       orderBy: { number: "asc" },
       include: {
         staff: { where: { isGm: true, active: true }, orderBy: { name: "asc" } },
       },
     }),
     prisma.trainee.findMany({
-      where: storeNumber ? { store: { number: storeNumber } } : undefined,
+      where: storeWhere ? { store: storeWhere } : undefined,
       include: traineeInclude,
     }),
   ]);
@@ -358,14 +371,15 @@ export async function getDashboard(filters: {
       needsPath: summaries.filter((row) => row.status === "ACTIVE" && !row.path).length,
     },
     rows,
-    locked: who.role === "store",
+    locked: !canSeeManyStores(who),
+    canManageTrainees: allows(who, "trainees_edit"),
   };
 }
 
 export async function listStoreChoices() {
   const who = await access();
   const stores = await prisma.store.findMany({
-    where: who.role === "store" ? { id: who.storeId } : undefined,
+    where: storeIdWhere(who),
     orderBy: { number: "asc" },
   });
   return stores.map((store) => ({ id: store.id, number: store.number, name: store.name }));
@@ -374,18 +388,19 @@ export async function listStoreChoices() {
 export async function getTrainee(id: string, scope?: Access): Promise<TraineeDetail | null> {
   const who = scope ?? (await access());
   const today = todayIso();
+  const storesWhere = storeIdWhere(who);
   const [trainee, stores, trainers] = await Promise.all([
     prisma.trainee.findUnique({ where: { id }, include: traineeInclude }),
     prisma.store.findMany({
-      where: who.role === "store" ? { id: who.storeId } : undefined,
+      where: storesWhere,
       orderBy: { number: "asc" },
     }),
     prisma.staff.findMany({
-      where: { active: true, qualified: true, ...(who.role === "store" ? { storeId: who.storeId } : {}) },
+      where: { active: true, qualified: true, ...(storesWhere ? { store: storesWhere } : {}) },
     }),
   ]);
   if (!trainee) return null;
-  if (who.role === "store" && trainee.storeId !== who.storeId) return null;
+  if (!seesStoreId(who, trainee.storeId)) return null;
   const record = trainee as TraineeRecord;
   const options: TrainerOption[] = trainers
     .filter((person) => person.storeId === record.storeId)
@@ -419,6 +434,7 @@ export async function createTrainee(input: {
   if (!language) throw new Error("Choose English or Spanish.");
   const path = parseTrainingPath(input.path);
   if (!path) throw new Error("Choose Service or Production.");
+  await requireTraineeEditor();
   await ownsStore(input.storeId);
   const store = await prisma.store.findUnique({ where: { id: input.storeId } });
   if (!store) throw new Error("Choose a restaurant.");
@@ -458,8 +474,14 @@ export async function updateTrainee(
   if (current.secondPath && current.secondPath === path) {
     throw new Error("That section is already the second path.");
   }
-  await ownsStore(current.storeId);
-  await ownsStore(input.storeId);
+  const who = await access();
+  await ownsStore(current.storeId, who);
+  await ownsStore(input.storeId, who);
+  if (name !== current.name || input.storeId !== current.storeId || input.startDate !== current.startDate) {
+    assertPermission(who, "trainees_edit");
+  }
+  if (input.status !== current.status) assertPermission(who, "trainees_deactivate");
+  if (path !== (current.path ?? "")) assertPermission(who, "paths");
   const store = await prisma.store.findUnique({ where: { id: input.storeId } });
   if (!store) throw new Error("Choose a restaurant.");
   const sections = sectionsForPaths(trainingPaths(path, current.secondPath));
@@ -513,6 +535,7 @@ export async function setTraineePath(id: string, path: string) {
   if (current.secondPath && current.secondPath === parsed) {
     throw new Error("That section is already the second path.");
   }
+  assertPermission(await access(), "paths");
   await ownsStore(current.storeId);
   await prisma.trainee.update({ where: { id }, data: { path: parsed } });
   await syncStatus(id);
@@ -524,6 +547,7 @@ export async function addSecondPath(id: string) {
     include: { modules: { include: { module: true } } },
   });
   if (!trainee) throw new Error("Trainee not found.");
+  assertPermission(await access(), "paths");
   await ownsStore(trainee.storeId);
   const first = traineePath(trainee);
   if (!first) throw new Error("Choose a path before adding a second one.");
@@ -550,6 +574,7 @@ export async function addSecondPath(id: string) {
 export async function deleteTrainee(id: string, scope?: Access) {
   const trainee = await prisma.trainee.findUnique({ where: { id } });
   if (!trainee) throw new Error("Trainee not found.");
+  assertPermission(scope ?? (await access()), "trainees_deactivate");
   await ownsStore(trainee.storeId, scope);
   await prisma.trainee.delete({ where: { id } });
 }
@@ -560,6 +585,7 @@ export async function setTraineeLanguage(id: string, language: "en" | "es") {
     include: { modules: { include: { module: true } } },
   });
   if (!trainee) throw new Error("Trainee not found.");
+  assertPermission(await access(), "trainees_edit");
   await ownsStore(trainee.storeId);
   if (trainee.language === language) return;
   const nextModules = await prisma.module.findMany({
@@ -591,20 +617,23 @@ export async function setTraineeLanguage(id: string, language: "en" | "es") {
   });
 }
 
-export async function updateProgress(input: {
-  traineeModuleId: string;
-  scheduledDate: string;
-  trainerValue: string;
-  completed: boolean;
-  completedDate: string;
-  notes: string;
-}) {
+export async function updateProgress(
+  input: {
+    traineeModuleId: string;
+    scheduledDate: string;
+    trainerValue: string;
+    completed: boolean;
+    completedDate: string;
+    notes: string;
+  },
+  scope?: Access,
+) {
   const row = await prisma.traineeModule.findUnique({
     where: { id: input.traineeModuleId },
     include: { trainee: true },
   });
   if (!row) throw new Error("That module is no longer on the path.");
-  await ownsStore(row.trainee.storeId);
+  const who = await ownsStore(row.trainee.storeId, scope);
   const today = todayIso();
   const scheduledDate = input.scheduledDate.trim();
   if (scheduledDate && !/^\d{4}-\d{2}-\d{2}$/.test(scheduledDate)) throw new Error("Choose a valid date.");
@@ -631,6 +660,16 @@ export async function updateProgress(input: {
     trainerLabel = input.trainerValue.slice("label:".length).trim().slice(0, 80);
   }
 
+  const sameTrainer =
+    (input.trainerValue === "" && !row.trainerId && !row.trainerLabel) ||
+    (input.trainerValue === "orientation" && !row.trainerId && row.trainerLabel === "Orientation") ||
+    (input.trainerValue.startsWith("staff:") && row.trainerId === input.trainerValue.slice("staff:".length)) ||
+    (input.trainerValue.startsWith("label:") && !row.trainerId && row.trainerLabel === trainerLabel);
+  const scheduleChanged = (scheduledDate || null) !== row.scheduledDate || !sameTrainer;
+  const completionChanged = input.completed !== row.completed || (completedDate || null) !== row.completedDate;
+  if (scheduleChanged) assertPermission(who, "schedule");
+  if (completionChanged) assertPermission(who, "sign_off");
+
   await prisma.traineeModule.update({
     where: { id: row.id },
     data: {
@@ -653,12 +692,12 @@ function matchesTraineeName(name: string, query?: string) {
 
 export async function getSchedule(filters: { storeNumber?: string; trainerId?: string; month?: string; query?: string }) {
   const who = await access();
-  const storeNumber = scopedStoreNumber(who, filters.storeNumber);
+  const storeWhere = storeNumberWhere(who, filters.storeNumber);
   const today = todayIso();
   const month = filters.month && /^\d{4}-\d{2}$/.test(filters.month) ? filters.month : currentMonthKey();
   const [stores, people, rows, doneRows] = await Promise.all([
     prisma.store.findMany({
-      where: storeNumber ? { number: storeNumber } : undefined,
+      where: storeWhere,
       orderBy: { number: "asc" },
       include: { staff: { where: { isGm: true, active: true } } },
     }),
@@ -666,7 +705,7 @@ export async function getSchedule(filters: { storeNumber?: string; trainerId?: s
       where: {
         active: true,
         qualified: true,
-        ...(storeNumber ? { store: { number: storeNumber } } : {}),
+        ...(storeWhere ? { store: storeWhere } : {}),
       },
       include: { store: true },
     }),
@@ -676,7 +715,7 @@ export async function getSchedule(filters: { storeNumber?: string; trainerId?: s
         scheduledDate: { not: null },
         trainee: {
           status: { in: ["ACTIVE", "PAUSED"] },
-          ...(storeNumber ? { store: { number: storeNumber } } : {}),
+          ...(storeWhere ? { store: storeWhere } : {}),
         },
         ...(filters.trainerId ? { trainerId: filters.trainerId } : {}),
       },
@@ -690,7 +729,7 @@ export async function getSchedule(filters: { storeNumber?: string; trainerId?: s
       where: {
         completed: true,
         scheduledDate: { not: null },
-        trainee: storeNumber ? { store: { number: storeNumber } } : undefined,
+        trainee: storeWhere ? { store: storeWhere } : undefined,
         ...(filters.trainerId ? { trainerId: filters.trainerId } : {}),
       },
       include: {
@@ -743,7 +782,7 @@ export async function getSchedule(filters: { storeNumber?: string; trainerId?: s
     month,
     sessions,
     done,
-    locked: who.role === "store",
+    locked: !canSeeManyStores(who),
     stores: stores.map((store) => ({
       id: store.id,
       number: store.number,
@@ -771,18 +810,18 @@ export async function getScheduledSessions(filters: {
   query?: string;
 }) {
   const who = await access();
-  const storeNumber = scopedStoreNumber(who, filters.storeNumber);
+  const storeWhere = storeNumberWhere(who, filters.storeNumber);
   const today = todayIso();
   const window = sessionWindow(today, filters.range, filters.from, filters.to);
   const [stores, rows] = await Promise.all([
     prisma.store.findMany({
-      where: storeNumber ? { number: storeNumber } : undefined,
+      where: storeWhere,
       orderBy: { number: "asc" },
     }),
     prisma.traineeModule.findMany({
       where: {
         scheduledDate: { gte: window.start, lte: window.end },
-        ...(storeNumber ? { trainee: { store: { number: storeNumber } } } : {}),
+        ...(storeWhere ? { trainee: { store: storeWhere } } : {}),
       },
       include: {
         trainee: { include: { store: true } },
@@ -794,7 +833,7 @@ export async function getScheduledSessions(filters: {
     where: {
       completed: false,
       scheduledDate: { lt: today },
-      ...(storeNumber ? { trainee: { store: { number: storeNumber } } } : {}),
+      ...(storeWhere ? { trainee: { store: storeWhere } } : {}),
     },
     include: {
       trainee: { include: { store: true } },
@@ -831,7 +870,7 @@ export async function getScheduledSessions(filters: {
     range: window.range,
     start: window.start,
     end: window.end,
-    locked: who.role === "store",
+    locked: !canSeeManyStores(who),
     stores: stores.map((store) => ({ id: store.id, number: store.number, name: store.name })),
     rows: sessions,
     overdue,
@@ -845,7 +884,7 @@ export async function getScheduledSessions(filters: {
 }
 
 export async function listDirectory() {
-  await requireAdmin();
+  assertPermission(await access(), "roster_import");
   const stores = await prisma.store.findMany({
     orderBy: { number: "asc" },
     include: { staff: { orderBy: [{ active: "desc" }, { isGm: "desc" }, { name: "asc" }] } },
@@ -874,6 +913,7 @@ export async function listDirectory() {
 }
 
 export async function updateStoreName(id: string, name: string) {
+  assertPermission(await access(), "roster_import");
   await prisma.store.update({ where: { id }, data: { name: name.trim().slice(0, 80) } });
 }
 
@@ -884,6 +924,7 @@ export async function createStaff(input: {
   isGm: boolean;
   qualified: boolean;
 }) {
+  assertPermission(await access(), "roster_import");
   await ownsStore(input.storeId);
   const name = input.name.trim();
   if (name.length < 2) throw new Error("Enter a name.");
@@ -910,6 +951,7 @@ export async function updateStaff(
 ) {
   const current = await prisma.staff.findUnique({ where: { id } });
   if (!current) throw new Error("That person is not on the roster.");
+  assertPermission(await access(), "roster_import");
   await ownsStore(current.storeId);
   const name = input.name.trim();
   if (name.length < 2) throw new Error("Enter a name.");
@@ -984,7 +1026,7 @@ export async function updateModuleTemplate(
     spanishManual?: ModuleText;
   },
 ): Promise<{ warning?: string; spanish?: ModuleText & { manual: boolean } }> {
-  await requireAdmin();
+  assertPermission(await access(), "modules");
   const current = await prisma.module.findUnique({ where: { id } });
   if (!current) throw new Error("That module is not in the catalog.");
   const name = input.name.trim();
@@ -1019,7 +1061,7 @@ export async function updateModuleTemplate(
 }
 
 export async function retranslateModule(id: string): Promise<{ warning?: string; spanish: ModuleText & { manual: boolean } }> {
-  await requireAdmin();
+  assertPermission(await access(), "modules");
   const current = await prisma.module.findUnique({ where: { id } });
   if (!current) throw new Error("That module is not in the catalog.");
   const english =
@@ -1033,7 +1075,7 @@ export async function retranslateModule(id: string): Promise<{ warning?: string;
 }
 
 export async function translateMissingSpanish(): Promise<{ updated: number; skipped: number; warning?: string }> {
-  await requireAdmin();
+  assertPermission(await access(), "modules");
   const english = await prisma.module.findMany({ where: { language: "en" }, orderBy: { sortOrder: "asc" } });
   const spanish = await prisma.module.findMany({ where: { language: "es" } });
   const byOrder = new Map(spanish.map((row) => [row.sortOrder, row]));
@@ -1093,7 +1135,7 @@ export async function translateMissingSpanish(): Promise<{ updated: number; skip
 }
 
 export async function previewSpanish(text: ModuleText): Promise<ModuleText | null> {
-  await requireAdmin();
+  assertPermission(await access(), "modules");
   return translateToSpanish(text);
 }
 
@@ -1184,7 +1226,7 @@ function linkMeta(link: string, videoCount: number | null, credit: string | null
 }
 
 export async function markModuleLinkOk(id: string) {
-  await requireAdmin();
+  assertPermission(await access(), "modules");
   const current = await prisma.module.findUnique({ where: { id } });
   if (!current) throw new Error("That module is not in the catalog.");
   const twin = await prisma.module.findFirst({
@@ -1277,7 +1319,7 @@ export async function addCatalogModule(input: {
   noteEs?: string;
   spanishSource?: "auto" | "manual";
 }): Promise<{ enId: string; esId: string; warning?: string }> {
-  await requireAdmin();
+  assertPermission(await access(), "modules");
   const section = catalogSection(input.section);
   const source = input.spanishSource ?? (input.nameEs.trim() ? "manual" : "auto");
   let esName = input.nameEs.trim();
@@ -1333,7 +1375,7 @@ function markedProgress(rows: { completed: boolean; scheduledDate: string | null
 }
 
 export async function removeCatalogModule(id: string) {
-  await requireAdmin();
+  assertPermission(await access(), "modules");
   const current = await prisma.module.findUnique({ where: { id }, include: { progress: true } });
   if (!current) throw new Error("That module is not in the catalog.");
   const twin = await prisma.module.findFirst({
@@ -1358,7 +1400,7 @@ export async function removeCatalogModule(id: string) {
 }
 
 export async function restoreCatalogModule(id: string) {
-  await requireAdmin();
+  assertPermission(await access(), "modules");
   const current = await prisma.module.findUnique({ where: { id } });
   if (!current) throw new Error("That module is not in the catalog.");
   await prisma.module.updateMany({
@@ -1390,7 +1432,7 @@ function sectionInsertAt(modules: { section: string; sortOrder: number }[], sect
 }
 
 export async function moveCatalogModuleToSection(id: string, sectionValue: string) {
-  await requireAdmin();
+  assertPermission(await access(), "modules");
   const section = catalogSection(sectionValue);
   const current = await prisma.module.findUnique({ where: { id } });
   if (!current) throw new Error("That module is not in the catalog.");
@@ -1427,7 +1469,7 @@ export async function moveCatalogModuleToSection(id: string, sectionValue: strin
 }
 
 export async function moveCatalogModule(id: string, direction: "up" | "down") {
-  await requireAdmin();
+  assertPermission(await access(), "modules");
   const current = await prisma.module.findUnique({ where: { id } });
   if (!current || current.archived) throw new Error("That module is not in the catalog.");
   const siblings = await prisma.module.findMany({
@@ -1474,6 +1516,7 @@ function moduleCells(module: {
 }
 
 export async function exportTraineeCsv(id: string) {
+  assertPermission(await access(), "export");
   const trainee = await getTrainee(id);
   if (!trainee) return null;
   const rows = [ITS_HEADER, ...trainee.modules.map((module) => moduleCells(module))];
@@ -1489,8 +1532,10 @@ export async function exportTraineeCsv(id: string) {
 
 export async function exportAllCsv() {
   const who = await access();
+  assertPermission(who, "export");
+  const stores = storeIdWhere(who);
   const trainees = await prisma.trainee.findMany({
-    where: who.role === "store" ? { storeId: who.storeId } : undefined,
+    where: stores ? { store: stores } : undefined,
     include: traineeInclude,
     orderBy: [{ store: { number: "asc" } }, { name: "asc" }],
   });
@@ -1885,13 +1930,13 @@ function previewFrom(mode: "bulk" | "single", plans: Plan[]): ImportPreview {
 }
 
 export async function previewImport(csv: string, single: SingleContext | null) {
-  await requireAdmin();
+  assertPermission(await access(), "roster_import");
   const { mode, plans } = await buildPlans(csv, single);
   return previewFrom(mode, plans);
 }
 
 export async function commitImport(csv: string, single: SingleContext | null) {
-  await requireAdmin();
+  assertPermission(await access(), "roster_import");
   const { mode, plans } = await buildPlans(csv, single);
   const preview = previewFrom(mode, plans);
   const good = plans.filter((plan) => !plan.issue && plan.moduleId);
@@ -1978,7 +2023,7 @@ export async function commitImport(csv: string, single: SingleContext | null) {
 const REPORT_SOURCES = ["csv", "google-sheets"];
 
 export async function previewDevelopmentReport(csv: string) {
-  await requireAdmin();
+  assertPermission(await access(), "roster_import");
   const parsed = parseDevelopmentReport(csv);
   const stores = await prisma.store.findMany();
   const known = new Set(stores.map((store) => store.number));
@@ -1996,7 +2041,7 @@ export async function previewDevelopmentReport(csv: string) {
 }
 
 export async function syncDevelopmentReport(source: DevelopmentReportSource) {
-  await requireAdmin();
+  assertPermission(await access(), "roster_import");
   const entries = await source.pull();
   return applyDevelopmentReport(entries, source.id);
 }
@@ -2100,7 +2145,7 @@ async function writeDevelopmentReport(entries: RosterEntry[], sourceId: "csv" | 
 }
 
 export async function applyDevelopmentReport(entries: RosterEntry[], sourceId: "csv" | "google-sheets") {
-  await requireAdmin();
+  assertPermission(await access(), "roster_import");
   return writeDevelopmentReport(entries, sourceId);
 }
 
@@ -2109,7 +2154,7 @@ export async function applyRosterSync(entries: RosterEntry[]) {
 }
 
 export async function getRosterPage() {
-  await requireAdmin();
+  assertPermission(await access(), "roster_import");
   const [stores, sync] = await Promise.all([
     prisma.store.findMany({ orderBy: { number: "asc" }, include: { staff: true } }),
     prisma.rosterSync.findFirst({ orderBy: { createdAt: "desc" } }),
@@ -2146,7 +2191,7 @@ export async function getRosterPage() {
 }
 
 export async function listStoreAccess() {
-  await requireAdmin();
+  assertPermission(await access(), "store_logins");
   const stores = await prisma.store.findMany({ orderBy: { number: "asc" } });
   return stores.map((store) => ({
     id: store.id,
@@ -2157,20 +2202,14 @@ export async function listStoreAccess() {
 
 export async function matchLogin(password: string) {
   const adminPassword = process.env.APP_PASSWORD;
-  const stores = await prisma.store.findMany({ where: { passwordHash: { not: null } } });
-  let storeMatch: { id: string; version: number } | null = null;
-  for (const store of stores) {
-    if (store.passwordHash && (await verifyPassword(password, store.passwordHash))) {
-      storeMatch = { id: store.id, version: store.sessionVersion };
-    }
-  }
   if (adminPassword && safeEqual(password, adminPassword)) return { role: "admin" as const };
-  if (storeMatch) return { role: "store" as const, storeId: storeMatch.id, version: storeMatch.version };
+  const shared = await matchSharedStorePassword(password);
+  if (shared) return { role: "user" as const, userId: shared.userId, version: shared.version };
   return null;
 }
 
 export async function setStorePassword(storeId: string, password: string, confirm: string) {
-  await requireAdmin();
+  assertPermission(await access(), "store_logins");
   if (password.length < 1) throw new Error("Enter a password.");
   if (password !== confirm) throw new Error("Type the same password in both fields.");
   const adminPassword = process.env.APP_PASSWORD;
@@ -2187,8 +2226,10 @@ export async function setStorePassword(storeId: string, password: string, confir
       throw new Error("Choose a password that is different from every other restaurant.");
     }
   }
-  await prisma.store.update({
+  const saved = await prisma.store.update({
     where: { id: storeId },
     data: { passwordHash: await hashPassword(password), sessionVersion: { increment: 1 } },
   });
+  if (!saved.passwordHash) return;
+  await upsertSharedStoreUser({ id: saved.id, number: saved.number, passwordHash: saved.passwordHash });
 }
