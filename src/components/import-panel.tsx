@@ -76,7 +76,7 @@ export function ImportPanel({
             <select className={`${fieldClass} mt-1`} value={storeNumber} onChange={(event) => setStoreNumber(event.target.value)}>
               {stores.map((store) => (
                 <option key={store.id} value={store.number}>
-                  {store.number} {store.name}
+                  {store.number}
                 </option>
               ))}
             </select>
@@ -155,8 +155,11 @@ export function ImportPanel({
         <div className="rounded-3xl border border-line bg-card p-4 text-sm">
           <p>
             {preview.mode === "bulk" ? "Bulk file" : "Single ITS tab"} · {preview.readRows} rows · {preview.applicable}{" "}
-            ready · {preview.trainees} trainees
+            ready · {preview.trainees} trainees · {preview.unmatched} unmatched
           </p>
+          {preview.unmatched > preview.issues.length ? (
+            <p className="mt-1 text-ink/60">Showing the first {preview.issues.length} unmatched rows.</p>
+          ) : null}
           {preview.sample.length > 0 ? (
             <ul className="mt-3 space-y-1">
               {preview.sample.map((row) => (
@@ -170,13 +173,16 @@ export function ImportPanel({
             </ul>
           ) : null}
           {preview.issues.length > 0 ? (
-            <ul className="mt-3 space-y-1 text-brick-dark">
-              {preview.issues.map((issue) => (
-                <li key={`${issue.row}-${issue.message}`}>
-                  Row {issue.row}: {issue.message}
-                </li>
-              ))}
-            </ul>
+            <div className="mt-3">
+              <p className="font-semibold text-brick-dark">Unmatched rows</p>
+              <ul className="mt-1 space-y-1 text-brick-dark">
+                {preview.issues.map((issue) => (
+                  <li key={`${issue.row}-${issue.message}`}>
+                    Row {issue.row}: {issue.message}
+                  </li>
+                ))}
+              </ul>
+            </div>
           ) : null}
         </div>
       ) : null}

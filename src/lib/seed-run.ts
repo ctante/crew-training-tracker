@@ -22,10 +22,11 @@ function spreadDates(start: string, end: string, count: number): string[] {
 export async function seedCatalog(prisma: PrismaClient) {
   const seeds = loadModuleSeeds();
   for (const store of SAMPLE_STORES) {
-    const existing = await prisma.store.findUnique({ where: { number: store.number } });
-    if (!existing) {
-      await prisma.store.create({ data: { number: store.number, name: store.name } });
-    }
+    await prisma.store.upsert({
+      where: { number: store.number },
+      create: { number: store.number, name: "" },
+      update: { name: "" },
+    });
   }
   for (const seed of seeds) {
     const existing = await prisma.module.findUnique({

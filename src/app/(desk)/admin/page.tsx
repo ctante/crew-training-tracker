@@ -1,9 +1,9 @@
 import Link from "next/link";
-import { createStaffAction, resetSampleAction, saveStoreAction, updateStaffAction } from "@/app/actions";
+import { createStaffAction, resetSampleAction, updateStaffAction } from "@/app/actions";
 import { Flash, PageHeader, fieldClass, ghostButton, primaryButton } from "@/components/ui";
-import { SEEDED_NAMES, groupByTrainerPosition } from "@/lib/constants";
+import { groupByTrainerPosition } from "@/lib/constants";
 import { listDirectory } from "@/lib/data";
-import { one, storeLabel } from "@/lib/format";
+import { one } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +23,7 @@ export default async function AdminPage({
       <PageHeader
         kicker="Desk setup"
         title="Restaurants and people"
-        description="Names for Nursery, Kenwood, and Emmorton are filled in. The other seven numbers had no name on the sheets. Qualified trainers come from the Development Report and are listed by position."
+        description="Restaurants are listed by number. Qualified trainers come from the Development Report and are grouped by position."
         actions={
           <>
             <Link href="/admin/roster" className={primaryButton}>
@@ -33,7 +33,7 @@ export default async function AdminPage({
               Edit modules
             </Link>
             <Link href="/admin/import" className={ghostButton}>
-              Import progress
+              Bulk progress
             </Link>
           </>
         }
@@ -46,27 +46,7 @@ export default async function AdminPage({
       <div className="space-y-5">
         {stores.map((store) => (
           <section key={store.id} id={`store-${store.id}`} className="scroll-mt-24 rounded-3xl border border-line bg-card p-4 shadow-sm">
-            <div className="flex flex-wrap items-end justify-between gap-3">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-[0.14em] text-ink/45">{store.number}</p>
-                <h2 className="font-display text-2xl">{storeLabel(store.number, store.name)}</h2>
-                {SEEDED_NAMES[store.number] ? (
-                  <p className="text-xs text-ink/50">Sheet name: {SEEDED_NAMES[store.number]}</p>
-                ) : (
-                  <p className="text-xs text-ink/50">No name was on the sheet. Add one below.</p>
-                )}
-              </div>
-              <form action={saveStoreAction} className="flex flex-wrap items-end gap-2">
-                <input type="hidden" name="id" value={store.id} />
-                <label className="text-sm font-semibold">
-                  Restaurant name
-                  <input className={`${fieldClass} mt-1`} name="name" defaultValue={store.name} placeholder="Name" />
-                </label>
-                <button className={ghostButton} type="submit">
-                  Save name
-                </button>
-              </form>
-            </div>
+            <h2 className="font-display text-2xl">{store.number}</h2>
 
             <div className="mt-4 space-y-4">
               {groupByTrainerPosition(store.staff).map((group) => (
@@ -139,7 +119,7 @@ export default async function AdminPage({
       <section className="mt-8 rounded-3xl border border-brick/30 bg-red-50 p-4">
         <h2 className="font-display text-2xl text-brick-dark">Restore sample data</h2>
         <p className="mt-1 max-w-2xl text-sm text-brick-dark/80">
-          This deletes trainees, progress, module edits, restaurant names, and people, then loads the fictional Sample
+          This deletes trainees, progress, module edits, and people, then loads the fictional Sample
           set again.
         </p>
         <form action={resetSampleAction} className="mt-3">

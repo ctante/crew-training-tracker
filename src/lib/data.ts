@@ -778,6 +778,7 @@ export type ImportPreview = {
   readRows: number;
   trainees: number;
   applicable: number;
+  unmatched: number;
   issues: ImportIssue[];
   sample: { trainee: string; module: string; date: string; trainer: string; completed: string }[];
 };
@@ -816,6 +817,14 @@ function columnIndex(headers: string[], aliases: string[]): number {
     if (index >= 0) return index;
   }
   return -1;
+}
+
+function normalizeLabel(value: string) {
+  return value.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function timeKey(value: string) {
+  return value.trim().toLowerCase().replace(/\s+/g, "");
 }
 
 function normalizeLanguage(value: string): "en" | "es" | "" {
@@ -859,12 +868,12 @@ async function buildPlans(csv: string, single: SingleContext | null): Promise<{ 
   ]);
   const storeByNumber = new Map(stores.map((store) => [store.number, store]));
   const traineeByKey = new Map(
-    existingTrainees.map((trainee) => [`${trainee.storeId}|${trainee.name.trim().toLowerCase()}`, trainee]),
+    existingTrainees.map((trainee) => [`${trainee.storeId}|${normalizeLabel(trainee.name)}`, trainee]),
   );
   const used = new Map<string, Set<string>>();
   const languageLock = new Map<string, "en" | "es">();
   for (const trainee of existingTrainees) {
-    languageLock.set(`${trainee.storeId}|${trainee.name.trim().toLowerCase()}`, asLanguage(trainee.language));
+    languageLock.set(`${trainee.storeId}|${normalizeLabel(trainee.name)}`, asLanguage(trainee.language));
   }
 
   if (mode === "single") {
@@ -929,12 +938,12 @@ async function buildPlans(csv: string, single: SingleContext | null): Promise<{ 
       plans.push({ ...base, storeNumber, issue: `Restaurant ${storeNumber || "(blank)"} is not in the tracker.` });
       return;
     }
-    const traineeName = (mode === "single" ? single!.trainee : cell(row, cols.trainee)).trim();
+    const traineeName = (mode === "single" ? single!.trainee : cell(row, cols.trainee)).replace(/\s+/g, " ").trim();
     if (traineeName.length < 2) {
       plans.push({ ...base, storeId: store.id, storeNumber, issue: "Trainee name is missing." });
       return;
     }
-    const key = `${store.id}|${traineeName.toLowerCase()}`;
+    const key = `${store.id}|${normalizeLabel(traineeName)}`;
     const explicitLanguage = normalizeLanguage(
       mode === "single" ? single!.language : cell(row, cols.language),
     );
@@ -953,13 +962,15 @@ async function buildPlans(csv: string, single: SingleContext | null): Promise<{ 
     const language = explicitLanguage || locked || "";
     const find = (lang: "en" | "es") => {
       const taken = used.get(`${key}|${lang}`) ?? new Set<string>();
-      const pool = modules.filter(
-        (module) =>
-          module.language === lang &&
-          !taken.has(module.id) &&
-          module.name.trim().toLowerCase() === moduleName.toLowerCase(),
-      );
-      if (time) return pool.find((module) => module.timeLabel.trim().toLowerCase() === time.toLowerCase()) ?? null;
+      const pool = modules
+        .filter(
+          (module) =>
+            module.language === lang &&
+            !taken.has(module.id) &&
+            normalizeLabel(module.name) === normalizeLabel(moduleName),
+        )
+        .sort((a, b) => a.sortOrder - b.sortOrder);
+      if (time) return pool.find((module) => timeKey(module.timeLabel) === timeKey(time)) ?? null;
       return pool[0] ?? null;
     };
     let matchedLanguage: "en" | "es" | "" = language;
@@ -1046,7 +1057,7 @@ async function buildPlans(csv: string, single: SingleContext | null): Promise<{ 
         (person) =>
           person.storeId === store.id &&
           person.active &&
-          person.name.trim().toLowerCase() === trainerName.toLowerCase(),
+          normalizeLabel(person.name) === normalizeLabel(trainerName),
       );
       if (staff) {
         trainerId = staff.id;
@@ -1055,7 +1066,7 @@ async function buildPlans(csv: string, single: SingleContext | null): Promise<{ 
     }
     const existing = traineeByKey.get(key);
     const startRaw = mode === "single" ? single!.startDate : cell(row, cols.start);
-    const startDate = existing?.startDate || parseLooseDate(startRaw) || todayIso();
+    const startDate = parseLooseDate(startRaw) || existing?.startDate || todayIso();
     const statusRaw = cell(row, cols.status).toUpperCase();
     const status = ["ACTIVE", "PAUSED", "COMPLETED"].includes(statusRaw) ? statusRaw : "";
     plans.push({
@@ -1082,16 +1093,15 @@ async function buildPlans(csv: string, single: SingleContext | null): Promise<{ 
 
 function previewFrom(mode: "bulk" | "single", plans: Plan[]): ImportPreview {
   const good = plans.filter((plan) => !plan.issue && plan.moduleId);
-  const trainees = new Set(good.map((plan) => `${plan.storeId}|${plan.traineeName.toLowerCase()}`));
+  const unmatched = plans.filter((plan) => plan.issue);
+  const trainees = new Set(good.map((plan) => `${plan.storeId}|${normalizeLabel(plan.traineeName)}`));
   return {
     mode,
     readRows: plans.length,
     trainees: trainees.size,
     applicable: good.length,
-    issues: plans
-      .filter((plan) => plan.issue)
-      .slice(0, 30)
-      .map((plan) => ({ row: plan.rowNumber, message: plan.issue! })),
+    unmatched: unmatched.length,
+    issues: unmatched.slice(0, 40).map((plan) => ({ row: plan.rowNumber, message: plan.issue! })),
     sample: good.slice(0, 8).map((plan) => ({
       trainee: plan.traineeName,
       module: plan.moduleName,
@@ -1115,22 +1125,16 @@ export async function commitImport(csv: string, single: SingleContext | null) {
   const updated: string[] = [];
   const groups = new Map<string, Plan[]>();
   for (const plan of good) {
-    const key = `${plan.storeId}|${plan.traineeName.toLowerCase()}`;
+    const key = `${plan.storeId}|${normalizeLabel(plan.traineeName)}`;
     groups.set(key, [...(groups.get(key) ?? []), plan]);
   }
   await prisma.$transaction(
     async (tx) => {
       for (const group of groups.values()) {
         const first = group[0];
-        let trainee = await tx.trainee.findFirst({
-          where: { storeId: first.storeId, name: first.traineeName },
-        });
-        const loose = trainee
-          ? trainee
-          : (
-              await tx.trainee.findMany({ where: { storeId: first.storeId } })
-            ).find((item) => item.name.trim().toLowerCase() === first.traineeName.toLowerCase());
-        trainee = loose ?? null;
+        const inStore = await tx.trainee.findMany({ where: { storeId: first.storeId } });
+        let trainee =
+          inStore.find((item) => normalizeLabel(item.name) === normalizeLabel(first.traineeName)) ?? null;
         if (!trainee) {
           const modules = await tx.module.findMany({ where: { language: first.language } });
           trainee = await tx.trainee.create({
@@ -1147,12 +1151,13 @@ export async function commitImport(csv: string, single: SingleContext | null) {
           });
           created.push(`${first.storeNumber} ${first.traineeName}`);
         } else {
-          if (first.position) {
-            await tx.trainee.update({
-              where: { id: trainee.id },
-              data: { position: first.position },
-            });
-          }
+          await tx.trainee.update({
+            where: { id: trainee.id },
+            data: {
+              startDate: first.startDate,
+              ...(first.position ? { position: first.position } : {}),
+            },
+          });
           updated.push(`${first.storeNumber} ${trainee.name}`);
         }
         for (const plan of group) {
@@ -1234,7 +1239,7 @@ export async function applyDevelopmentReport(entries: RosterEntry[], sourceId: "
         touched.add(store.id);
         const people = await tx.staff.findMany({ where: { storeId: store.id } });
         const existing = people.find(
-          (person) => person.name.trim().toLowerCase() === entry.name.trim().toLowerCase(),
+          (person) => normalizeLabel(person.name) === normalizeLabel(entry.name),
         );
         const isGm = entry.position
           ? canonicalTrainerPosition(entry.position) === "General Manager"

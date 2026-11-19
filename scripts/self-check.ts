@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { compareTrainers, trainerPositionRank } from "../src/lib/constants";
-import { exportTraineeCsv, getDashboard, getTrainee, previewImport, syncDevelopmentReport } from "../src/lib/data";
+import { commitImport, exportTraineeCsv, getDashboard, getTrainee, previewImport, syncDevelopmentReport } from "../src/lib/data";
 import { prisma } from "../src/lib/db";
 import { formatLongDate, parseLooseDate } from "../src/lib/format";
 import { loadModuleSeeds } from "../src/lib/module-csv";
@@ -144,6 +144,52 @@ Zed Unqualified,05207,Shift Manager,No
     assert.deepEqual(crewNames, [...crewNames].sort((a, b) => a.localeCompare(b, "en")));
   } finally {
     await prisma.staff.deleteMany({ where: { name: { in: rosterNames } } });
+    await prisma.rosterSync.deleteMany();
+  }
+
+  const sheet = `Store Number,Trainee,Language,Start Date,Section,Module,Time,Date,Trainer,Completed
+05207,Sheet Check Person,EN,2026-10-01,Foundation,Fries,10 min,2026-10-02,Nobody Known,TRUE
+05207,Sheet Check Person,EN,2026-10-01,Foundation,  fries ,2 hr,2026-10-03,Nobody Known,FALSE
+05207,Sheet Check Person,EN,2026-10-01,Foundation,Not A Real Module,10 min,,Nobody Known,FALSE
+`;
+  try {
+    const preview = await previewImport(sheet, null);
+    assert.equal(preview.mode, "bulk");
+    assert.equal(preview.trainees, 1);
+    assert.equal(preview.applicable, 2);
+    assert.equal(preview.unmatched, 1);
+    assert.ok(preview.issues.some((issue) => issue.message.includes("Not A Real Module")));
+    const first = await commitImport(sheet, null);
+    assert.equal(first.created.length, 1);
+    const person = await prisma.trainee.findFirst({
+      where: { name: "Sheet Check Person" },
+      include: { modules: { include: { module: true } } },
+    });
+    assert.ok(person);
+    assert.equal(person.startDate, "2026-10-01");
+    const video = person.modules.find((row) => row.module.name === "Fries" && row.module.timeLabel === "10 min");
+    const floor = person.modules.find((row) => row.module.name === "Fries" && row.module.timeLabel === "2 hr");
+    assert.equal(video?.completed, true);
+    assert.equal(video?.scheduledDate, "2026-10-02");
+    assert.equal(video?.trainerLabel, "Nobody Known");
+    assert.equal(video?.trainerId, null);
+    assert.equal(floor?.completed, false);
+    assert.equal(floor?.scheduledDate, "2026-10-03");
+    const second = await commitImport(sheet, null);
+    assert.equal(second.created.length, 0);
+    assert.equal(second.updated.length, 1);
+    assert.equal(await prisma.trainee.count({ where: { name: "Sheet Check Person" } }), 1);
+  } finally {
+    await prisma.trainee.deleteMany({ where: { name: "Sheet Check Person" } });
+  }
+
+  const rosterCsv = "Name,Store,Position,Qualified\nIdem Trainer,05207,Crew Trainer,Yes\n";
+  try {
+    await syncDevelopmentReport(csvDevelopmentReportSource(rosterCsv));
+    await syncDevelopmentReport(csvDevelopmentReportSource(rosterCsv));
+    assert.equal(await prisma.staff.count({ where: { name: "Idem Trainer" } }), 1);
+  } finally {
+    await prisma.staff.deleteMany({ where: { name: "Idem Trainer" } });
     await prisma.rosterSync.deleteMany();
   }
 

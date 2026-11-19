@@ -59,7 +59,7 @@ Every sample person uses the last name Sample. Each restaurant has six qualified
 - **Overdue**: a training date before today, still open.
 - **Due today**: scheduled for the Eastern Time date.
 - **Stalled**: active, started at least 14 days ago, no completion in the last 14 days, and no upcoming date.
-- Restaurants 05207 Nursery, 07276 Kenwood, and 11237 Emmorton have names. The other seven numbers start blank and can be named in Admin.
+- Restaurants are shown by number only: 05207, 07276, 11237, 11350, 12956, 12958, 22171, 28182, 33853, and 33965.
 
 ## ITS import and export
 

@@ -48,7 +48,7 @@ export function NewTraineeForm({
         <select className={`${fieldClass} mt-1`} name="storeId" required defaultValue={stores[0]?.id}>
           {stores.map((store) => (
             <option key={store.id} value={store.id}>
-              {store.number} {store.name}
+              {store.number}
             </option>
           ))}
         </select>

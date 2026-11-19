@@ -41,7 +41,7 @@ export default async function RosterPage() {
       <div className="mt-8 space-y-5">
         {roster.stores.map((store) => (
           <section key={store.id} className="rounded-3xl border border-line bg-card p-4">
-            <h2 className="font-display text-2xl">{storeLabel(store.number, store.name)}</h2>
+            <h2 className="font-display text-2xl">{storeLabel(store.number)}</h2>
             <p className="text-sm text-ink/60">{store.trainers.length} qualified</p>
             {store.trainers.length === 0 ? (
               <p className="mt-2 text-sm text-ink/60">No qualified trainers yet.</p>

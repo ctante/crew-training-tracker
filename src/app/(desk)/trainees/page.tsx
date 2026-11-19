@@ -31,7 +31,7 @@ export default async function TraineesPage() {
         {groups.map(({ store, rows }) => (
           <section key={store.id}>
             <h2 className="font-display text-2xl">
-              {storeLabel(store.number, store.name)}
+              {storeLabel(store.number)}
               <span className="ml-2 text-base text-ink/50">{rows.length}</span>
             </h2>
             {store.gmNames.length > 0 ? (
