@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { changeLanguageAction, deleteTraineeAction, setTraineePathAction, updateTraineeAction } from "@/app/actions";
+import { addSecondPathAction, changeLanguageAction, deleteTraineeAction, setTraineePathAction, updateTraineeAction } from "@/app/actions";
 import { TraineeEditor } from "@/components/trainee-editor";
 import { Flag, Flash, PageHeader, ProgressBar, fieldClass, ghostButton, primaryButton } from "@/components/ui";
 import { languageName } from "@/lib/constants";
@@ -33,16 +33,18 @@ export default async function TraineePage({
       ? "Schedule details saved."
       : saved === "path"
         ? "Path saved. This schedule shows Foundation plus that section."
-        : saved === "language"
-          ? "The language was switched. Step progress stayed on the same numbers."
-          : "";
+        : saved === "second"
+          ? "The second path is on this schedule."
+          : saved === "language"
+            ? "The language was switched. Step progress stayed on the same numbers."
+            : "";
 
   return (
     <div>
       <PageHeader
         kicker={`${storeLabel(trainee.storeNumber)} · ${trainee.name}`}
         title="Individual Training Schedule (ITS)"
-        description={`${trainee.path === "SERVICE" ? "Service" : trainee.path === "PRODUCTION" ? "Production" : "Path not chosen"} · ${languageName(trainee.language)}${trainee.position ? ` · ${trainee.position}` : ""} · started ${trainee.startDate}`}
+        description={`${trainee.pathLabel} · ${languageName(trainee.language)} · started ${trainee.startDate}${trainee.firstPathCompletedOn ? ` · first path finished ${trainee.firstPathCompletedOn}` : ""}`}
         actions={
           <a href={`/api/export/${trainee.id}`} className={ghostButton}>
             Export ITS
@@ -90,6 +92,21 @@ export default async function TraineePage({
           </button>
         </form>
       )}
+
+      {trainee.firstPathComplete && !trainee.secondPath ? (
+        <form action={addSecondPathAction} className="mb-4 rounded-3xl border border-line bg-card p-4">
+          <input type="hidden" name="id" value={trainee.id} />
+          <p className="font-semibold">Add second path</p>
+          <p className="mt-1 text-sm text-ink/70">
+            Foundation and {trainee.path === "SERVICE" ? "Service" : "Production"} are done
+            {trainee.firstPathCompletedOn ? ` as of ${trainee.firstPathCompletedOn}` : ""}. Add{" "}
+            {trainee.path === "SERVICE" ? "Production" : "Service"} and this schedule goes back to in progress.
+          </p>
+          <button className={`${primaryButton} mt-3`} type="submit">
+            Add {trainee.path === "SERVICE" ? "Production" : "Service"}
+          </button>
+        </form>
+      ) : null}
 
       <section className="rounded-3xl border border-line bg-card p-4 shadow-sm">
         <div className="flex items-end justify-between gap-3">
@@ -155,10 +172,6 @@ export default async function TraineePage({
           <label className="text-sm font-semibold">
             Start date
             <input className={`${fieldClass} mt-1`} type="date" name="startDate" defaultValue={trainee.startDate} required />
-          </label>
-          <label className="text-sm font-semibold">
-            Position
-            <input className={`${fieldClass} mt-1`} name="position" defaultValue={trainee.position} />
           </label>
           <label className="text-sm font-semibold">
             Path

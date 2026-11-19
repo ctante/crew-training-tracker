@@ -52,14 +52,41 @@ export function parseTrainingPath(value: string | null | undefined): TrainingPat
   return null;
 }
 
+export function trainingPaths(
+  first: string | null | undefined,
+  second?: string | null,
+): TrainingPath[] {
+  const primary = parseTrainingPath(first);
+  const extra = parseTrainingPath(second);
+  const paths: TrainingPath[] = [];
+  if (primary) paths.push(primary);
+  if (extra && extra !== primary) paths.push(extra);
+  return paths;
+}
+
+export function otherPath(path: TrainingPath): TrainingPath {
+  return path === "SERVICE" ? "PRODUCTION" : "SERVICE";
+}
+
+export function sectionsForPaths(paths: TrainingPath[]): SectionId[] {
+  const sections: SectionId[] = ["FOUNDATION"];
+  if (paths.includes("SERVICE")) sections.push("SERVICE");
+  if (paths.includes("PRODUCTION")) sections.push("PRODUCTION");
+  return sections;
+}
+
+export function onTrainingPaths(section: SectionId, paths: TrainingPath[], archived = false): boolean {
+  if (archived) return false;
+  if (section === "FOUNDATION") return true;
+  return paths.includes(section as TrainingPath);
+}
+
 export function onTrainingPath(
   section: SectionId,
   path: TrainingPath | null,
   archived = false,
 ): boolean {
-  if (archived) return false;
-  if (section === "FOUNDATION") return true;
-  return section === path;
+  return onTrainingPaths(section, path ? [path] : [], archived);
 }
 
 export function inferPathChoice(serviceRows: number, productionRows: number): TrainingPath | null {
@@ -78,18 +105,13 @@ export function hasProgressMark(row: {
 
 export function summarize(
   modules: ModuleSnap[],
-  input: { startDate: string; status: string; today: string; path?: TrainingPath | null },
+  input: { startDate: string; status: string; today: string; path?: TrainingPath | null; paths?: TrainingPath[] },
 ): ProgressSummary {
-  const path = input.path === undefined ? null : input.path;
+  const paths = input.paths ?? (input.path ? [input.path] : []);
   const ordered = modules
-    .filter((module) => onTrainingPath(module.section, path, module.archived))
+    .filter((module) => onTrainingPaths(module.section, paths, module.archived))
     .sort((a, b) => a.sortOrder - b.sortOrder);
-  const visibleSections: SectionId[] =
-    path === "SERVICE"
-      ? ["FOUNDATION", "SERVICE"]
-      : path === "PRODUCTION"
-        ? ["FOUNDATION", "PRODUCTION"]
-        : ["FOUNDATION"];
+  const visibleSections = sectionsForPaths(paths);
   const total = ordered.length;
   const completed = ordered.filter((module) => module.completed).length;
   const percent = total === 0 ? 0 : Math.round((completed / total) * 100);

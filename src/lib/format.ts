@@ -216,6 +216,46 @@ export function one(value: string | string[] | undefined): string {
   return value ?? "";
 }
 
+export function many(value: string | string[] | undefined): string[] {
+  if (!value) return [];
+  const raw = Array.isArray(value) ? value : [value];
+  return raw.flatMap((item) => item.split(",")).map((item) => item.trim()).filter(Boolean);
+}
+
+export function daysBetween(start: string, end: string): number | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(start) || !/^\d{4}-\d{2}-\d{2}$/.test(end)) return null;
+  const from = Date.parse(`${start}T00:00:00Z`);
+  const to = Date.parse(`${end}T00:00:00Z`);
+  return Math.round((to - from) / 86_400_000);
+}
+
+export function formatDateTimeEt(iso: string): string {
+  const text = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(new Date(iso));
+  return `${text} ET`;
+}
+
+export function selectReportStores(input: {
+  role: "admin" | "store";
+  ownStore?: string;
+  requested: string[];
+  entireOrg: boolean;
+  known: string[];
+}): string[] {
+  if (input.role === "store") return input.ownStore ? [input.ownStore] : [];
+  if (input.entireOrg || input.requested.length === 0) return [...input.known];
+  const known = new Set(input.known);
+  const picked = input.requested.filter((number) => known.has(number));
+  return picked.length ? picked : [...input.known];
+}
+
 export function withParams(
   path: string,
   current: Record<string, string>,

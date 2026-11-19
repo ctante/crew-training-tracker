@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { DateRangeFilters } from "@/components/date-range-filters";
 import { Flag, PageHeader, ProgressBar } from "@/components/ui";
 import { languageName, SECTION_TITLES } from "@/lib/constants";
 import { getDashboard, getScheduledSessions } from "@/lib/data";
@@ -23,10 +24,18 @@ export default async function HomePage({
   const range = one(params.range) || "today";
   const from = one(params.from);
   const to = one(params.to);
+  const sessionTab = one(params.tab) || "scheduled";
   const data = await getDashboard({ storeNumber, status, flag, query });
   const sessions = view === "sessions" ? await getScheduledSessions({ storeNumber, range, from, to }) : null;
   const current = { store: storeNumber, status: status === "ACTIVE" ? "" : status, flag, q: query };
-  const sessionQuery = { view: "sessions", store: storeNumber, range: sessions?.range || range, from: sessions?.range === "custom" ? sessions.start : "", to: sessions?.range === "custom" ? sessions.end : "" };
+  const sessionQuery = {
+    view: "sessions",
+    store: storeNumber,
+    tab: sessionTab,
+    range: sessions?.range || range,
+    from: sessions?.range === "custom" ? sessions.start : "",
+    to: sessions?.range === "custom" ? sessions.end : "",
+  };
 
   return (
     <div>
@@ -56,7 +65,7 @@ export default async function HomePage({
       </div>
 
       {sessions ? (
-        <SessionsPanel sessions={sessions} storeNumber={storeNumber} sessionQuery={sessionQuery} />
+        <SessionsPanel sessions={sessions} storeNumber={storeNumber} sessionQuery={sessionQuery} tab={sessionTab} />
       ) : (
         <TraineeBoard data={data} storeNumber={storeNumber} status={status} flag={flag} query={query} current={current} />
       )}
@@ -176,26 +185,33 @@ function TraineeBoard({
   );
 }
 
-const SESSION_CHOICES = [
-  ["today", "Today"],
-  ["yesterday", "Yesterday"],
-  ["tomorrow", "Tomorrow"],
-  ["this-week", "This week"],
-  ["last-week", "Last week"],
-  ["next-week", "Next week"],
-  ["this-month", "This month"],
-  ["custom", "Custom"],
-] as const;
-
 function SessionsPanel({
   sessions,
   storeNumber,
   sessionQuery,
+  tab,
 }: {
   sessions: Awaited<ReturnType<typeof getScheduledSessions>>;
   storeNumber: string;
   sessionQuery: Record<string, string>;
+  tab: string;
 }) {
+  const mode = tab === "overdue" || tab === "done" || tab === "all" ? tab : "scheduled";
+  const shown =
+    mode === "overdue"
+      ? sessions.overdue
+      : mode === "done"
+        ? sessions.rows.filter((row) => row.completed)
+        : mode === "all"
+          ? sessions.rows
+          : sessions.rows.filter((row) => !row.completed);
+  const groups = groupByTrainee(shown);
+  const tabs = [
+    ["scheduled", `Scheduled ${sessions.counts.scheduled}`],
+    ["overdue", `Overdue ${sessions.counts.overdue}`],
+    ["done", `Done ${sessions.counts.done}`],
+    ["all", `All ${sessions.counts.all}`],
+  ] as const;
   return (
     <>
       <div className="flex gap-2 overflow-x-auto pb-1">
@@ -214,81 +230,85 @@ function SessionsPanel({
           </Chip>
         ))}
       </div>
+      <div className="mt-3">
+        <DateRangeFilters path="/" query={sessionQuery} range={sessions.range} start={sessions.start} end={sessions.end} />
+      </div>
       <div className="mt-3 flex flex-wrap gap-2">
-        {SESSION_CHOICES.map(([value, label]) => (
-          <Chip
-            key={value}
-            href={withParams("/", sessionQuery, {
-              range: value,
-              from: value === "custom" ? sessions.start : null,
-              to: value === "custom" ? sessions.end : null,
-            })}
-            active={sessions.range === value}
-          >
+        {tabs.map(([value, label]) => (
+          <Chip key={value} href={withParams("/", sessionQuery, { tab: value === "scheduled" ? null : value })} active={mode === value}>
             {label}
           </Chip>
         ))}
       </div>
-      {sessions.range === "custom" ? (
-        <form action="/" className="mt-3 flex flex-wrap items-end gap-2">
-          <input type="hidden" name="view" value="sessions" />
-          <input type="hidden" name="range" value="custom" />
-          {storeNumber ? <input type="hidden" name="store" value={storeNumber} /> : null}
-          <label className="text-sm font-semibold">
-            From
-            <input className="mt-1 block min-h-11 rounded-2xl border border-line bg-card px-3" type="date" name="from" defaultValue={sessions.start} required />
-          </label>
-          <label className="text-sm font-semibold">
-            To
-            <input className="mt-1 block min-h-11 rounded-2xl border border-line bg-card px-3" type="date" name="to" defaultValue={sessions.end} required />
-          </label>
-          <button className="min-h-11 rounded-full bg-bark px-4 text-sm font-semibold text-white" type="submit">
-            Apply
-          </button>
-        </form>
-      ) : null}
-      <p className="mt-3 text-sm text-ink/60">
-        {formatShortDate(sessions.start)}
-        {sessions.start === sessions.end ? "" : ` – ${formatShortDate(sessions.end)}`} · Eastern Time · {sessions.rows.length} session
-        {sessions.rows.length === 1 ? "" : "s"}
-      </p>
+      {mode === "overdue" ? (
+        <p className="mt-3 text-sm text-ink/60">Dated before today and not done. The date range above does not change this list.</p>
+      ) : (
+        <p className="mt-3 text-sm text-ink/60">
+          {shown.length} session{shown.length === 1 ? "" : "s"} in this list.
+        </p>
+      )}
       <div className="mt-4 space-y-3">
-        {sessions.rows.length === 0 ? (
+        {groups.length === 0 ? (
           <p className="rounded-3xl border border-dashed border-line bg-card px-5 py-10 text-center text-sm text-ink/70">
-            No sessions are scheduled in this range.
+            No sessions in this list.
           </p>
         ) : (
-          sessions.rows.map((row) => <SessionRow key={row.id} row={row} />)
+          groups.map((group) => <TraineeSessions key={group.traineeId} group={group} />)
         )}
       </div>
     </>
   );
 }
 
-function SessionRow({ row }: { row: ScheduledSessionRow }) {
+function groupByTrainee(rows: ScheduledSessionRow[]) {
+  const map = new Map<string, { traineeId: string; traineeName: string; storeNumber: string; pathLabel: string; sessions: ScheduledSessionRow[] }>();
+  for (const row of rows) {
+    const current = map.get(row.traineeId) ?? {
+      traineeId: row.traineeId,
+      traineeName: row.traineeName,
+      storeNumber: row.storeNumber,
+      pathLabel: row.pathLabel,
+      sessions: [],
+    };
+    current.sessions.push(row);
+    map.set(row.traineeId, current);
+  }
+  return [...map.values()]
+    .map((group) => ({
+      ...group,
+      sessions: [...group.sessions].sort((a, b) => a.date.localeCompare(b.date) || a.moduleName.localeCompare(b.moduleName)),
+    }))
+    .sort((a, b) => a.storeNumber.localeCompare(b.storeNumber) || a.traineeName.localeCompare(b.traineeName));
+}
+
+function TraineeSessions({
+  group,
+}: {
+  group: { traineeId: string; traineeName: string; storeNumber: string; pathLabel: string; sessions: ScheduledSessionRow[] };
+}) {
   return (
-    <Link
-      href={`/trainees/${row.traineeId}`}
-      className="block rounded-3xl border border-line bg-card p-4 shadow-sm transition hover:border-brick/40"
-    >
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-ink/45">
-            {storeLabel(row.storeNumber)} · {formatShortDate(row.date)}
-          </p>
-          <h2 className="text-xl font-semibold">{row.traineeName}</h2>
-          <p className="text-sm text-ink/70">
-            {row.moduleName}
-            {row.timeLabel ? ` · ${row.timeLabel}` : ""}
-          </p>
-        </div>
-        <Flag kind={row.completed ? "done" : "today"}>{row.completed ? "Done" : "Not done"}</Flag>
-      </div>
-      <p className="mt-2 text-sm">
-        <span className="font-semibold">Trainer </span>
-        {row.trainerName || "No trainer"}
-      </p>
-    </Link>
+    <section className="rounded-3xl border border-line bg-card p-4 shadow-sm">
+      <Link href={`/trainees/${group.traineeId}`} className="block">
+        <p className="text-xs font-semibold uppercase tracking-[0.12em] text-ink/45">
+          {storeLabel(group.storeNumber)} · {group.pathLabel}
+        </p>
+        <h2 className="text-xl font-semibold">{group.traineeName}</h2>
+      </Link>
+      <ul className="mt-3 divide-y divide-line">
+        {group.sessions.map((row) => (
+          <li key={row.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
+            <span>
+              <span className="font-semibold">{row.moduleName}</span>
+              <span className="text-ink/60">
+                {" "}
+                · {formatShortDate(row.date)} · {row.trainerName || "No trainer"}
+              </span>
+            </span>
+            <Flag kind={row.completed ? "done" : "today"}>{row.completed ? "Done" : "Not done"}</Flag>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 
@@ -339,8 +359,7 @@ function TraineeRow({ row }: { row: TraineeSummary }) {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.12em] text-ink/45">
-            {storeLabel(row.storeNumber)}
-            {row.position ? ` · ${row.position}` : ""} · {languageName(row.language)}
+            {storeLabel(row.storeNumber)} · {languageName(row.language)} · {row.pathLabel}
           </p>
           <h2 className="text-xl font-semibold">{row.name}</h2>
         </div>

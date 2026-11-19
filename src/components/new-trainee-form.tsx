@@ -29,7 +29,7 @@ export function NewTraineeForm({
             storeId: String(form.get("storeId") || ""),
             startDate: String(form.get("startDate") || ""),
             language: String(form.get("language") || ""),
-            position: String(form.get("position") || ""),
+            position: "",
             path: String(form.get("path") || ""),
           });
           if ("error" in result && result.error) {
@@ -74,16 +74,6 @@ export function NewTraineeForm({
           <option value="SERVICE">Service</option>
           <option value="PRODUCTION">Production</option>
         </select>
-      </label>
-      <label className="text-sm font-semibold">
-        Position
-        <input className={`${fieldClass} mt-1`} name="position" list="positions" placeholder="Optional" />
-        <datalist id="positions">
-          <option value="Crew" />
-          <option value="Crew Trainer" />
-          <option value="Shift Manager" />
-          <option value="Assistant Manager" />
-        </datalist>
       </label>
       {error ? <p className="text-sm text-brick-dark">{error}</p> : null}
       <button className={primaryButton} disabled={pending} type="submit">

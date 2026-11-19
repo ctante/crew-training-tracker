@@ -33,6 +33,12 @@ export type TraineeSummary = {
   language: "en" | "es";
   position: string;
   path: TrainingPath | null;
+  paths: TrainingPath[];
+  secondPath: TrainingPath | null;
+  firstPathCompletedOn: string | null;
+  pathLabel: string;
+  scheduleComplete: boolean;
+  firstPathComplete: boolean;
   startDate: string;
   status: string;
   isSample: boolean;
@@ -79,6 +85,12 @@ export type TraineeDetail = {
   language: "en" | "es";
   position: string;
   path: TrainingPath | null;
+  paths: TrainingPath[];
+  secondPath: TrainingPath | null;
+  firstPathCompletedOn: string | null;
+  pathLabel: string;
+  scheduleComplete: boolean;
+  firstPathComplete: boolean;
   startDate: string;
   status: string;
   isSample: boolean;
@@ -137,6 +149,7 @@ export type ScheduledSessionRow = {
   trainerName: string;
   completed: boolean;
   timeLabel: string;
+  pathLabel: string;
 };
 
 export function sectionTitle(language: string, section: SectionId): string {

@@ -20,9 +20,12 @@ import {
 import {
   hasProgressMark,
   inferPathChoice,
-  onTrainingPath,
+  onTrainingPaths,
+  otherPath,
   parseTrainingPath,
+  sectionsForPaths,
   summarize,
+  trainingPaths,
   type ModuleSnap,
   type TrainingPath,
 } from "./progress";
@@ -59,6 +62,8 @@ type TraineeRecord = {
   language: string;
   position: string;
   path: string | null;
+  secondPath: string | null;
+  firstPathCompletedOn: string | null;
   status: string;
   isSample: boolean;
   store: { id: string; number: string; name: string };
@@ -123,14 +128,38 @@ function traineePath(trainee: { path: string | null }): TrainingPath | null {
   return parseTrainingPath(trainee.path);
 }
 
+function heldPaths(trainee: { path: string | null; secondPath?: string | null }): TrainingPath[] {
+  return trainingPaths(trainee.path, trainee.secondPath);
+}
+
 function rowIsVisible(
-  trainee: { path: string | null; language: string },
+  trainee: { path: string | null; secondPath?: string | null; language: string },
   module: { section: string; archived: boolean; language: string },
 ) {
-  return module.language === trainee.language && onTrainingPath(asSection(module.section), traineePath(trainee), module.archived);
+  return module.language === trainee.language && onTrainingPaths(asSection(module.section), heldPaths(trainee), module.archived);
+}
+
+function pathLabel(paths: TrainingPath[]): string {
+  if (paths.length === 0) return "Choose path";
+  return paths.map((path) => (path === "SERVICE" ? "Service" : "Production")).join(" + ");
 }
 
 function toSummary(trainee: TraineeRecord, today: string): TraineeSummary {
+  const paths = heldPaths(trainee);
+  const modules = snaps(trainee);
+  const progress = summarize(modules, {
+    startDate: trainee.startDate,
+    status: trainee.status,
+    today,
+    paths,
+  });
+  const first = traineePath(trainee);
+  const firstProgress = summarize(modules, {
+    startDate: trainee.startDate,
+    status: trainee.status,
+    today,
+    paths: first ? [first] : [],
+  });
   return {
     id: trainee.id,
     name: trainee.name,
@@ -139,16 +168,17 @@ function toSummary(trainee: TraineeRecord, today: string): TraineeSummary {
     storeName: trainee.store.name,
     language: asLanguage(trainee.language),
     position: trainee.position,
-    path: traineePath(trainee),
+    path: first,
+    paths,
+    secondPath: parseTrainingPath(trainee.secondPath),
+    firstPathCompletedOn: trainee.firstPathCompletedOn,
+    pathLabel: pathLabel(paths),
+    scheduleComplete: paths.length > 0 && progress.total > 0 && progress.completed === progress.total,
+    firstPathComplete: Boolean(first) && firstProgress.total > 0 && firstProgress.completed === firstProgress.total,
     startDate: trainee.startDate,
     status: trainee.status,
     isSample: trainee.isSample,
-    progress: summarize(snaps(trainee), {
-      startDate: trainee.startDate,
-      status: trainee.status,
-      today,
-      path: traineePath(trainee),
-    }),
+    progress,
   };
 }
 
@@ -191,23 +221,50 @@ function toEditor(trainee: TraineeRecord): EditorModule[] {
     });
 }
 
+function rowsForPaths(
+  trainee: {
+    language: string;
+    modules: { completed: boolean; completedDate: string | null; module: { section: string; archived: boolean; language: string } }[];
+  },
+  paths: TrainingPath[],
+) {
+  const sections = new Set(sectionsForPaths(paths));
+  return trainee.modules.filter(
+    (row) =>
+      row.module.language === trainee.language &&
+      !row.module.archived &&
+      sections.has(asSection(row.module.section)),
+  );
+}
+
 async function syncStatus(traineeId: string) {
   const trainee = await prisma.trainee.findUnique({
     where: { id: traineeId },
     include: { modules: { include: { module: true } } },
   });
   if (!trainee || trainee.modules.length === 0) return;
-  const path = traineePath(trainee);
-  if (!path) {
-    const foundationOpen = trainee.modules.some(
-      (row) => rowIsVisible(trainee, row.module) && !row.completed,
-    );
+  const first = traineePath(trainee);
+  const paths = heldPaths(trainee);
+  if (!first) {
+    const foundationOpen = trainee.modules.some((row) => rowIsVisible(trainee, row.module) && !row.completed);
     if (foundationOpen && trainee.status === "COMPLETED") {
       await prisma.trainee.update({ where: { id: traineeId }, data: { status: "ACTIVE" } });
     }
     return;
   }
-  const visible = trainee.modules.filter((row) => rowIsVisible(trainee, row.module));
+  const firstRows = rowsForPaths(trainee, [first]);
+  const firstDone = firstRows.length > 0 && firstRows.every((row) => row.completed);
+  const firstDoneOn = firstRows
+    .map((row) => row.completedDate)
+    .filter((date): date is string => Boolean(date))
+    .sort()
+    .at(-1);
+  if (firstDone && !trainee.firstPathCompletedOn && firstDoneOn) {
+    await prisma.trainee.update({ where: { id: traineeId }, data: { firstPathCompletedOn: firstDoneOn } });
+  } else if (!firstDone && !trainee.secondPath && trainee.firstPathCompletedOn) {
+    await prisma.trainee.update({ where: { id: traineeId }, data: { firstPathCompletedOn: null } });
+  }
+  const visible = rowsForPaths(trainee, paths);
   if (visible.length === 0) return;
   const allDone = visible.every((row) => row.completed);
   if (allDone && trainee.status !== "COMPLETED") {
@@ -345,12 +402,6 @@ export async function getTrainee(id: string, scope?: Access): Promise<TraineeDet
     .sort(compareTrainers);
   return {
     ...toSummary(record, today),
-    progress: summarize(snaps(record), {
-      startDate: record.startDate,
-      status: record.status,
-      today,
-      path: traineePath(record),
-    }),
     trainers: options,
     modules: toEditor(record),
     stores: stores.map((store) => ({ id: store.id, number: store.number, name: store.name })),
@@ -398,7 +449,7 @@ export async function createTrainee(input: {
 
 export async function updateTrainee(
   id: string,
-  input: { name: string; storeId: string; startDate: string; position: string; status: string; path: string },
+  input: { name: string; storeId: string; startDate: string; status: string; path: string },
 ) {
   const name = input.name.trim();
   if (name.length < 2) throw new Error("Enter the trainee name.");
@@ -408,10 +459,14 @@ export async function updateTrainee(
   if (!path) throw new Error("Choose Service or Production.");
   const current = await prisma.trainee.findUnique({ where: { id } });
   if (!current) throw new Error("Trainee not found.");
+  if (current.secondPath && current.secondPath === path) {
+    throw new Error("That section is already the second path.");
+  }
   await ownsStore(current.storeId);
   await ownsStore(input.storeId);
   const store = await prisma.store.findUnique({ where: { id: input.storeId } });
   if (!store) throw new Error("Choose a restaurant.");
+  const sections = sectionsForPaths(trainingPaths(path, current.secondPath));
   if (input.status === "COMPLETED") {
     const open = await prisma.traineeModule.count({
       where: {
@@ -420,7 +475,7 @@ export async function updateTrainee(
         module: {
           archived: false,
           language: current.language,
-          section: { in: path === "SERVICE" ? ["FOUNDATION", "SERVICE"] : ["FOUNDATION", "PRODUCTION"] },
+          section: { in: sections },
         },
       },
     });
@@ -434,7 +489,6 @@ export async function updateTrainee(
       name,
       storeId: store.id,
       startDate: input.startDate,
-      position: input.position.trim(),
       status: input.status,
       path,
     },
@@ -460,8 +514,40 @@ export async function setTraineePath(id: string, path: string) {
   if (!parsed) throw new Error("Choose Service or Production.");
   const current = await prisma.trainee.findUnique({ where: { id } });
   if (!current) throw new Error("Trainee not found.");
+  if (current.secondPath && current.secondPath === parsed) {
+    throw new Error("That section is already the second path.");
+  }
   await ownsStore(current.storeId);
   await prisma.trainee.update({ where: { id }, data: { path: parsed } });
+  await syncStatus(id);
+}
+
+export async function addSecondPath(id: string) {
+  const trainee = await prisma.trainee.findUnique({
+    where: { id },
+    include: { modules: { include: { module: true } } },
+  });
+  if (!trainee) throw new Error("Trainee not found.");
+  await ownsStore(trainee.storeId);
+  const first = traineePath(trainee);
+  if (!first) throw new Error("Choose a path before adding a second one.");
+  if (trainee.secondPath) throw new Error("This trainee already has both paths.");
+  const firstRows = rowsForPaths(trainee, [first]);
+  if (firstRows.length === 0 || firstRows.some((row) => !row.completed)) {
+    throw new Error("Finish Foundation and the first path before adding the other one.");
+  }
+  const doneOn =
+    trainee.firstPathCompletedOn ||
+    firstRows
+      .map((row) => row.completedDate)
+      .filter((date): date is string => Boolean(date))
+      .sort()
+      .at(-1) ||
+    todayIso();
+  await prisma.trainee.update({
+    where: { id },
+    data: { secondPath: otherPath(first), firstPathCompletedOn: doneOn, status: "ACTIVE" },
+  });
   await syncStatus(id);
 }
 
@@ -568,7 +654,7 @@ export async function getSchedule(filters: { storeNumber?: string; trainerId?: s
   const storeNumber = scopedStoreNumber(who, filters.storeNumber);
   const today = todayIso();
   const month = filters.month && /^\d{4}-\d{2}$/.test(filters.month) ? filters.month : currentMonthKey();
-  const [stores, people, rows] = await Promise.all([
+  const [stores, people, rows, doneRows] = await Promise.all([
     prisma.store.findMany({
       where: storeNumber ? { number: storeNumber } : undefined,
       orderBy: { number: "asc" },
@@ -598,44 +684,63 @@ export async function getSchedule(filters: { storeNumber?: string; trainerId?: s
         trainer: true,
       },
     }),
+    prisma.traineeModule.findMany({
+      where: {
+        completed: true,
+        scheduledDate: { startsWith: month },
+        trainee: storeNumber ? { store: { number: storeNumber } } : undefined,
+        ...(filters.trainerId ? { trainerId: filters.trainerId } : {}),
+      },
+      include: {
+        trainee: { include: { store: true } },
+        module: true,
+        trainer: true,
+      },
+    }),
   ]);
-  const sessions: ScheduleSession[] = rows
-    .filter((row) => row.scheduledDate && rowIsVisible(row.trainee, row.module))
-    .map((row) => {
-      const language = asLanguage(row.trainee.language);
-      const section = asSection(row.module.section);
-      const date = row.scheduledDate!;
-      return {
-        id: row.id,
-        date,
-        traineeId: row.traineeId,
-        traineeName: row.trainee.name,
-        storeNumber: row.trainee.store.number,
-        storeName: row.trainee.store.name,
-        moduleName: row.module.name,
-        sortOrder: row.module.sortOrder,
-        section,
-        sectionTitle: sectionTitle(language, section),
-        timeLabel: row.module.timeLabel,
-        kind: row.module.kind,
-        trainerName: row.trainerLabel,
-        trainerIsGm: Boolean(row.trainer?.isGm),
-        overdue: date < today,
-        dueToday: date === today,
-        traineeStatus: row.trainee.status,
-      };
-    })
-    .sort(
-      (a, b) =>
-        a.date.localeCompare(b.date) ||
-        a.storeNumber.localeCompare(b.storeNumber) ||
-        a.traineeName.localeCompare(b.traineeName),
-    );
+  const toSession = (row: (typeof rows)[number], completed: boolean): ScheduleSession | null => {
+    if (!row.scheduledDate || !rowIsVisible(row.trainee, row.module)) return null;
+    const language = asLanguage(row.trainee.language);
+    const section = asSection(row.module.section);
+    const date = row.scheduledDate;
+    return {
+      id: row.id,
+      date,
+      traineeId: row.traineeId,
+      traineeName: row.trainee.name,
+      storeNumber: row.trainee.store.number,
+      storeName: row.trainee.store.name,
+      moduleName: row.module.name,
+      sortOrder: row.module.sortOrder,
+      section,
+      sectionTitle: sectionTitle(language, section),
+      timeLabel: row.module.timeLabel,
+      kind: row.module.kind,
+      trainerName: row.trainerLabel,
+      trainerIsGm: Boolean(row.trainer?.isGm),
+      overdue: !completed && date < today,
+      dueToday: !completed && date === today,
+      traineeStatus: row.trainee.status,
+    };
+  };
+  const byDate = (left: ScheduleSession, right: ScheduleSession) =>
+    left.date.localeCompare(right.date) ||
+    left.storeNumber.localeCompare(right.storeNumber) ||
+    left.traineeName.localeCompare(right.traineeName);
+  const sessions = rows.flatMap((row) => {
+    const session = toSession(row, false);
+    return session ? [session] : [];
+  }).sort(byDate);
+  const done = doneRows.flatMap((row) => {
+    const session = toSession(row, true);
+    return session ? [session] : [];
+  }).sort(byDate);
   if (filters.trainerId && !people.some((person) => person.id === filters.trainerId)) notFound();
   return {
     today,
     month,
     sessions,
+    done,
     locked: who.role === "store",
     stores: stores.map((store) => ({
       id: store.id,
@@ -682,26 +787,42 @@ export async function getScheduledSessions(filters: {
       },
     }),
   ]);
-  const sessions: ScheduledSessionRow[] = rows
+  const overdueSource = await prisma.traineeModule.findMany({
+    where: {
+      completed: false,
+      scheduledDate: { lt: today },
+      ...(storeNumber ? { trainee: { store: { number: storeNumber } } } : {}),
+    },
+    include: {
+      trainee: { include: { store: true } },
+      module: true,
+    },
+  });
+  const toRow = (row: (typeof rows)[number]): ScheduledSessionRow => ({
+    id: row.id,
+    date: row.scheduledDate!,
+    traineeId: row.traineeId,
+    traineeName: row.trainee.name,
+    storeNumber: row.trainee.store.number,
+    moduleName: row.module.name,
+    trainerName: row.trainerLabel,
+    completed: row.completed,
+    timeLabel: row.module.timeLabel,
+    pathLabel: pathLabel(heldPaths(row.trainee)),
+  });
+  const sortRows = (left: ScheduledSessionRow, right: ScheduledSessionRow) =>
+    left.date.localeCompare(right.date) ||
+    left.storeNumber.localeCompare(right.storeNumber) ||
+    left.traineeName.localeCompare(right.traineeName) ||
+    left.moduleName.localeCompare(right.moduleName);
+  const sessions = rows
     .filter((row) => row.scheduledDate && rowIsVisible(row.trainee, row.module))
-    .map((row) => ({
-      id: row.id,
-      date: row.scheduledDate!,
-      traineeId: row.traineeId,
-      traineeName: row.trainee.name,
-      storeNumber: row.trainee.store.number,
-      moduleName: row.module.name,
-      trainerName: row.trainerLabel,
-      completed: row.completed,
-      timeLabel: row.module.timeLabel,
-    }))
-    .sort(
-      (a, b) =>
-        a.date.localeCompare(b.date) ||
-        a.storeNumber.localeCompare(b.storeNumber) ||
-        a.traineeName.localeCompare(b.traineeName) ||
-        a.moduleName.localeCompare(b.moduleName),
-    );
+    .map(toRow)
+    .sort(sortRows);
+  const overdue = overdueSource
+    .filter((row) => row.scheduledDate && rowIsVisible(row.trainee, row.module))
+    .map(toRow)
+    .sort(sortRows);
   return {
     today,
     range: window.range,
@@ -710,6 +831,13 @@ export async function getScheduledSessions(filters: {
     locked: who.role === "store",
     stores: stores.map((store) => ({ id: store.id, number: store.number, name: store.name })),
     rows: sessions,
+    overdue,
+    counts: {
+      scheduled: sessions.filter((row) => !row.completed).length,
+      overdue: overdue.length,
+      done: sessions.filter((row) => row.completed).length,
+      all: sessions.length,
+    },
   };
 }
 
@@ -1573,13 +1701,13 @@ export async function syncDevelopmentReport(source: DevelopmentReportSource) {
   return applyDevelopmentReport(entries, source.id);
 }
 
-export async function applyDevelopmentReport(entries: RosterEntry[], sourceId: "csv" | "google-sheets") {
-  await requireAdmin();
+async function writeDevelopmentReport(entries: RosterEntry[], sourceId: "csv" | "google-sheets") {
   const stores = await prisma.store.findMany();
   const byNumber = new Map(stores.map((store) => [store.number, store]));
   let createdCount = 0;
   let updatedCount = 0;
   let skippedCount = 0;
+  let deactivatedCount = 0;
   const issues: { row: number; message: string }[] = [];
   const seen = new Set<string>();
   const touched = new Set<string>();
@@ -1638,16 +1766,17 @@ export async function applyDevelopmentReport(entries: RosterEntry[], sourceId: "
           createdCount += 1;
         }
       }
-      if (seen.size > 0 && touched.size > 0) {
-        await tx.staff.updateMany({
+      if (touched.size > 0) {
+        const retired = await tx.staff.updateMany({
           where: {
             storeId: { in: [...touched] },
             rosterSource: { in: REPORT_SOURCES },
-            id: { notIn: [...seen] },
-            qualified: true,
+            ...(seen.size ? { id: { notIn: [...seen] } } : {}),
+            active: true,
           },
-          data: { qualified: false, isTrainer: false },
+          data: { qualified: false, isTrainer: false, active: false },
         });
+        deactivatedCount = retired.count;
       }
       await tx.rosterSync.create({
         data: {
@@ -1656,6 +1785,7 @@ export async function applyDevelopmentReport(entries: RosterEntry[], sourceId: "
           createdCount,
           updatedCount,
           skippedCount,
+          deactivatedCount,
           note: issues
             .slice(0, 5)
             .map((issue) => `Row ${issue.row}: ${issue.message}`)
@@ -1666,7 +1796,16 @@ export async function applyDevelopmentReport(entries: RosterEntry[], sourceId: "
     { timeout: 20000 },
   );
 
-  return { rowsRead: entries.length, createdCount, updatedCount, skippedCount, issues };
+  return { rowsRead: entries.length, createdCount, updatedCount, skippedCount, deactivatedCount, issues };
+}
+
+export async function applyDevelopmentReport(entries: RosterEntry[], sourceId: "csv" | "google-sheets") {
+  await requireAdmin();
+  return writeDevelopmentReport(entries, sourceId);
+}
+
+export async function applyRosterSync(entries: RosterEntry[]) {
+  return writeDevelopmentReport(entries, "csv");
 }
 
 export async function getRosterPage() {
@@ -1699,6 +1838,7 @@ export async function getRosterPage() {
           createdCount: sync.createdCount,
           updatedCount: sync.updatedCount,
           skippedCount: sync.skippedCount,
+          deactivatedCount: sync.deactivatedCount,
           note: sync.note,
         }
       : null,
