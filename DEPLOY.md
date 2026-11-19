@@ -2,7 +2,11 @@
 
 The live site is the GitHub repo `ctante/crew-training-tracker`, branch `main`, at https://mcd-its.vercel.app. Vercel builds that branch for production. The person using ITS only needs that URL and the team password. The repository name and Vercel project stay as they are.
 
-The beta site is branch `beta` at https://crew-training-tracker.vercel.app. It has its own database. New pull requests target `beta`. Merge `beta` into `main` only when promoting to the live restaurants. The beta site shows a BETA / TEST SITE banner because `NEXT_PUBLIC_BETA` is set for that branch only.
+The beta site is branch `beta`, meant to be served at https://crew-training-tracker.vercel.app. New pull requests target `beta`. Merge `beta` into `main` only when promoting to the live restaurants. The beta site shows a BETA / TEST SITE banner because `NEXT_PUBLIC_BETA=1` is set as a Preview variable for the `beta` branch only.
+
+Beta builds are paused on purpose until that address uses a separate database. The Vercel ignored build step skips a build when the git branch is `beta`, so a beta deploy cannot run migrations or the seed against the live database. After the Neon connection creates a database branch for Preview deployments, clear that ignored build step and redeploy `beta`.
+
+The weekly roster sync must call https://mcd-its.vercel.app/api/sync/roster. Do not leave it on crew-training-tracker.vercel.app once that address is the beta site.
 
 ## 1. Create the Vercel project
 
