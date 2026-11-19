@@ -22,7 +22,7 @@ export default async function PathPage({
       <PageHeader
         kicker="One central copy"
         title={language === "es" ? "Ruta en español" : "English training path"}
-        description="Catalog order for Foundation, Service, and Production. A trainee schedule shows Foundation plus the path they chose."
+        description="Catalog order starts with Orientation, then Foundation, then Service or Production. A trainee schedule shows Orientation and Foundation plus the path they chose."
         actions={
           <Link href={`/admin/modules?lang=${language}`} className="inline-flex min-h-11 items-center rounded-full bg-brick px-4 text-sm font-semibold text-white">
             Edit modules

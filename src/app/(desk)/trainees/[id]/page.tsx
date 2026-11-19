@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { addSecondPathAction, changeLanguageAction, deleteTraineeAction, setTraineePathAction, updateTraineeAction } from "@/app/actions";
 import { TraineeEditor } from "@/components/trainee-editor";
 import { Flag, Flash, PageHeader, ProgressBar, fieldClass, ghostButton, primaryButton } from "@/components/ui";
-import { languageName } from "@/lib/constants";
+import { SECTION_TITLES, languageName } from "@/lib/constants";
 import { getTrainee } from "@/lib/data";
 import { formatMinutes, one, storeLabel, todayIso } from "@/lib/format";
 
@@ -122,29 +122,18 @@ export default async function TraineePage({
         <div className={`mt-4 grid gap-3 ${trainee.progress.sections.length > 2 ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
           {trainee.progress.sections.map((section) => {
             const percent = section.total ? Math.round((section.completed / section.total) * 100) : 0;
-            const title =
-              section.section === "FOUNDATION"
-                ? trainee.language === "es"
-                  ? "Fundación"
-                  : "Foundation"
-                : section.section === "SERVICE"
-                  ? trainee.language === "es"
-                    ? "Servicio"
-                    : "Service"
-                  : trainee.language === "es"
-                    ? "Producción"
-                    : "Production";
+            const title = SECTION_TITLES[trainee.language][section.section];
             return (
               <a key={section.section} href={`#${section.section.toLowerCase()}`} className="rounded-2xl bg-paper px-3 py-2">
                 <div className="flex items-center justify-between text-sm font-semibold">
                   <span>{title}</span>
-                  <span>
-                    {section.completed}/{section.total}
-                  </span>
+                  <span>{section.total ? `${section.completed}/${section.total}` : "No modules yet"}</span>
                 </div>
-                <div className="mt-2">
-                  <ProgressBar value={percent} tone={section.section === "SERVICE" ? "sun" : section.section === "PRODUCTION" ? "moss" : "brick"} />
-                </div>
+                {section.total ? (
+                  <div className="mt-2">
+                    <ProgressBar value={percent} tone={section.section === "SERVICE" ? "sun" : section.section === "PRODUCTION" ? "moss" : "brick"} />
+                  </div>
+                ) : null}
               </a>
             );
           })}
@@ -234,6 +223,14 @@ export default async function TraineePage({
           Open the schedule
         </Link>
       </div>
+      {trainee.modules.some((module) => module.section === "ORIENTATION") ? null : (
+        <section id="orientation" className="mt-6 rounded-3xl border border-dashed border-line bg-card px-4 py-5">
+          <h2 className="font-display text-2xl">
+            {trainee.language === "es" ? "Orientación" : "Orientation"}
+          </h2>
+          <p className="mt-1 text-sm text-ink/70">No orientation modules yet. They show up here when an admin adds them.</p>
+        </section>
+      )}
       <TraineeEditor modules={trainee.modules} trainers={trainee.trainers} today={today} />
     </div>
   );

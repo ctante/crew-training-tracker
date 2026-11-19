@@ -102,7 +102,7 @@ const traineeInclude = {
 } as const;
 
 function asSection(value: string): SectionId {
-  if (value === "SERVICE" || value === "PRODUCTION") return value;
+  if (value === "ORIENTATION" || value === "SERVICE" || value === "PRODUCTION") return value;
   return "FOUNDATION";
 }
 
@@ -988,8 +988,8 @@ export async function updateModuleTemplate(
 }
 
 function catalogSection(value: string): SectionId {
-  if (value === "FOUNDATION" || value === "SERVICE" || value === "PRODUCTION") return value;
-  throw new Error("Choose Foundation, Service, or Production.");
+  if (value === "ORIENTATION" || value === "FOUNDATION" || value === "SERVICE" || value === "PRODUCTION") return value;
+  throw new Error("Choose Orientation, Foundation, Service, or Production.");
 }
 
 function catalogWrite(language: "en" | "es", section: SectionId, input: {

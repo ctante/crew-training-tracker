@@ -117,7 +117,9 @@ async function main() {
   assert.equal(scoped.completed, 1);
   assert.equal(scoped.percent, 50);
   assert.equal(scoped.overdueCount, 0);
-  assert.equal(scoped.sections.map((section) => section.section).join(","), "FOUNDATION,SERVICE");
+  assert.equal(scoped.sections.map((section) => section.section).join(","), "ORIENTATION,FOUNDATION,SERVICE");
+  assert.equal(scoped.sections.find((section) => section.section === "ORIENTATION")?.total, 0);
+  assert.equal(scoped.percent, 50);
   const unset = summarize(
     [
       {
@@ -309,6 +311,8 @@ Zed Unqualified,05207,Shift Manager,No
     assert.deepEqual(report.selected, ["05207"]);
     assert.equal(report.completion.length, 1);
     assert.equal(report.completionTotal.trainees, report.completion[0].trainees);
+    assert.equal(report.moduleRows.filter((row) => row.section === "ORIENTATION").length, 0);
+    assert.ok(report.moduleRows.some((row) => row.section === "FOUNDATION" && row.eligible > 0));
     const storeOnly = await prisma.store.findUniqueOrThrow({ where: { number: "05207" } });
     const createdId = await createTrainee({
       name: "Second Path Check",

@@ -1,11 +1,11 @@
 import { access } from "./access";
 import { toCsv } from "./csv";
-import type { SectionId } from "./constants";
+import { SECTION_TITLES, type SectionId } from "./constants";
 import { prisma } from "./db";
 import { daysBetween, selectReportStores, sessionWindow, todayIso } from "./format";
 import { summarize, trainingPaths, type TrainingPath } from "./progress";
 
-export const REPORTS = ["completion", "overdue", "trainers", "time", "path"] as const;
+export const REPORTS = ["completion", "overdue", "trainers", "time", "path", "modules"] as const;
 export type ReportKind = (typeof REPORTS)[number];
 
 export type CompletionRow = {
@@ -41,6 +41,21 @@ export type PathNeedRow = {
   foundationPercent: number;
 };
 
+export type ModuleReportRow = {
+  section: SectionId;
+  sectionTitle: string;
+  name: string;
+  sortOrder: number;
+  eligible: number;
+  completed: number;
+  notCompleted: number;
+  scheduled: number;
+  overdue: number;
+  percent: number;
+  completedNames: string[];
+  openNames: string[];
+};
+
 type TraineeBundle = {
   id: string;
   name: string;
@@ -62,8 +77,13 @@ type TraineeBundle = {
 };
 
 function asSection(value: string): SectionId {
-  if (value === "SERVICE" || value === "PRODUCTION") return value;
+  if (value === "ORIENTATION" || value === "SERVICE" || value === "PRODUCTION") return value;
   return "FOUNDATION";
+}
+
+function sectionOnPath(section: SectionId, paths: TrainingPath[]): boolean {
+  if (section === "ORIENTATION" || section === "FOUNDATION") return true;
+  return paths.includes(section as TrainingPath);
 }
 
 function average(values: number[]): number | null {
@@ -114,7 +134,10 @@ export async function getReports(filters: {
       trainerLabel: row.trainerLabel,
     }));
     const progress = summarize(snaps, { startDate: trainee.startDate, status: trainee.status, today, paths });
-    const foundation = summarize(snaps, { startDate: trainee.startDate, status: trainee.status, today, paths: [] });
+    const foundation = summarize(
+      snaps.filter((row) => row.section === "FOUNDATION"),
+      { startDate: trainee.startDate, status: trainee.status, today, paths: [] },
+    );
     const foundationDates = snaps
       .filter((row) => row.section === "FOUNDATION" && row.completed && row.completedDate)
       .map((row) => row.completedDate as string)
@@ -123,7 +146,7 @@ export async function getReports(filters: {
       foundation.total > 0 && foundation.completed === foundation.total ? foundationDates.at(-1) ?? "" : "";
     const scheduleComplete = paths.length > 0 && progress.total > 0 && progress.completed === progress.total;
     const pathDone = trainee.firstPathCompletedOn || (scheduleComplete ? progress.lastCompletedDate ?? "" : "");
-    const onPath = (section: SectionId) => section === "FOUNDATION" || paths.includes(section as TrainingPath);
+    const onPath = (section: SectionId) => sectionOnPath(section, paths);
     return {
       id: trainee.id,
       name: trainee.name,
@@ -273,6 +296,62 @@ export async function getReports(filters: {
     kind: "total",
   });
 
+  const catalog = await prisma.module.findMany({
+    where: { archived: false },
+    orderBy: [{ sortOrder: "asc" }, { language: "asc" }],
+  });
+  const moduleStats = new Map<string, ModuleReportRow>();
+  for (const item of catalog) {
+    const section = asSection(item.section);
+    const key = `${section}:${item.sortOrder}`;
+    const current = moduleStats.get(key);
+    if (current && item.language !== "en") continue;
+    moduleStats.set(key, {
+      section,
+      sectionTitle: SECTION_TITLES.en[section],
+      name: item.name,
+      sortOrder: item.sortOrder,
+      eligible: 0,
+      completed: 0,
+      notCompleted: 0,
+      scheduled: 0,
+      overdue: 0,
+      percent: 0,
+      completedNames: [],
+      openNames: [],
+    });
+  }
+  for (const trainee of trainees) {
+    const paths = trainingPaths(trainee.path, trainee.secondPath);
+    for (const row of trainee.modules) {
+      if (row.module.archived || row.module.language !== trainee.language) continue;
+      const section = asSection(row.module.section);
+      if (!sectionOnPath(section, paths)) continue;
+      const stat = moduleStats.get(`${section}:${row.module.sortOrder}`);
+      if (!stat) continue;
+      const label = `${trainee.store.number} · ${trainee.name}`;
+      stat.eligible += 1;
+      if (row.completed) {
+        stat.completed += 1;
+        stat.completedNames.push(label);
+      } else {
+        stat.notCompleted += 1;
+        stat.openNames.push(label);
+        if (row.scheduledDate) stat.scheduled += 1;
+        if (row.scheduledDate && row.scheduledDate < today) stat.overdue += 1;
+      }
+    }
+  }
+  const sectionOrder: SectionId[] = ["ORIENTATION", "FOUNDATION", "SERVICE", "PRODUCTION"];
+  const moduleRows = [...moduleStats.values()]
+    .map((row) => ({
+      ...row,
+      percent: row.eligible ? Math.round((row.completed / row.eligible) * 100) : 0,
+      completedNames: row.completedNames.sort(),
+      openNames: row.openNames.sort(),
+    }))
+    .sort((a, b) => sectionOrder.indexOf(a.section) - sectionOrder.indexOf(b.section) || a.sortOrder - b.sortOrder);
+
   const needingPath: PathNeedRow[] = bundles
     .filter((row) => row.paths.length === 0)
     .map((row) => ({
@@ -300,6 +379,7 @@ export async function getReports(filters: {
     trainerActivityTotal: trainerActivity.reduce((sum, row) => sum + row.count, 0),
     timeRows,
     needingPath,
+    moduleRows,
   };
 }
 
@@ -364,6 +444,24 @@ export function reportCsv(kind: ReportKind, data: ReportData): { filename: strin
       ]),
     ];
     return { filename: "time-to-complete.csv", csv: toCsv(rows) };
+  }
+  if (kind === "modules") {
+    const rows = [
+      ["Section", "Module", "Eligible", "Completed", "Not completed", "Percent", "Scheduled", "Overdue", "Completed names", "Not completed names"],
+      ...data.moduleRows.map((row) => [
+        row.sectionTitle,
+        row.name,
+        String(row.eligible),
+        String(row.completed),
+        String(row.notCompleted),
+        String(row.percent),
+        String(row.scheduled),
+        String(row.overdue),
+        row.completedNames.join("; "),
+        row.openNames.join("; "),
+      ]),
+    ];
+    return { filename: "completion-by-module.csv", csv: toCsv(rows) };
   }
   const rows = [
     ["Store", "Trainee", "Start date", "Foundation percent"],
