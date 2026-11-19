@@ -1,6 +1,6 @@
 import type { PrismaClient } from "@prisma/client";
 import { TRAINER_POSITION_ORDER } from "./constants";
-import { loadModuleSeeds } from "./module-csv";
+import { loadModuleSeeds, seedLinkVerified } from "./module-csv";
 import {
   SAMPLE_PROFILES,
   SAMPLE_STORES,
@@ -39,6 +39,11 @@ export async function seedCatalog(prisma: PrismaClient) {
       const curatedSpanish =
         seed.language === "es" && seed.name.trim() !== "" && seed.name.trim() !== (englishName.get(seed.sortOrder) ?? "");
       await prisma.module.create({ data: { ...seed, manualTranslation: curatedSpanish } });
+    } else if (seedLinkVerified(existing.link) && (!existing.linkVerified || existing.needsReview)) {
+      await prisma.module.update({
+        where: { id: existing.id },
+        data: { linkVerified: true, needsReview: false },
+      });
     }
   }
   console.log(

@@ -64,6 +64,7 @@ model Module {
   link         String          @default("")
   videoTitles  String          @default("")
   needsReview  Boolean         @default(false)
+  linkVerified Boolean         @default(false)
   kind         String
   note         String          @default("")
   archived     Boolean         @default(false)

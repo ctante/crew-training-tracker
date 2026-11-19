@@ -31,6 +31,7 @@ import {
 } from "./progress";
 import type { DevelopmentReportSource, RosterEntry } from "./roster/source";
 import { parseDevelopmentReport } from "./roster/parse";
+import { moduleNeedsReview } from "./module-csv";
 import { spanishNeedsTranslation, spanishTextUpdate, translateToSpanish, type ModuleText } from "./translate";
 import { sectionTitle, type EditorModule, type ModuleTemplate, type ScheduleSession, type ScheduledSessionRow, type StaffMember, type StoreOption, type TraineeDetail, type TraineeSummary, type TrainerOption } from "./types";
 
@@ -950,6 +951,7 @@ export async function listModules(language: "en" | "es"): Promise<ModuleTemplate
       link: module.link,
       videoTitles: module.videoTitles,
       needsReview: module.needsReview,
+      linkVerified: module.linkVerified,
       kind: module.kind,
       note: module.note,
       archived: module.archived,
@@ -995,6 +997,7 @@ export async function updateModuleTemplate(
   const credit = input.credit === "Auto" || input.credit === "Manual" ? input.credit : null;
   const link = input.link.trim();
   const previousLink = current.link;
+  const linkVerified = link === current.link.trim() ? current.linkVerified : false;
   await prisma.module.update({
     where: { id },
     data: {
@@ -1004,8 +1007,9 @@ export async function updateModuleTemplate(
       videoCount,
       credit,
       link,
+      linkVerified,
       videoTitles: input.videoTitles.trim(),
-      needsReview: /regId=/i.test(link),
+      needsReview: moduleNeedsReview(link, linkVerified),
       kind: moduleKind({ link, videoCount, credit }),
       ...(current.language === "es" ? { manualTranslation: true } : {}),
     },
@@ -1057,7 +1061,9 @@ export async function translateMissingSpanish(): Promise<{ updated: number; skip
       videoTitles: !twin || !twin.videoTitles.trim() ? translated.videoTitles : twin.videoTitles,
       note: twin?.note ?? "",
     };
-    const link = twin && twin.link.trim() && twin.link.trim() !== row.link.trim() ? twin.link : row.link;
+    const ownLink = Boolean(twin && twin.link.trim() && twin.link.trim() !== row.link.trim());
+    const link = ownLink ? twin!.link : row.link;
+    const linkVerified = ownLink ? twin!.linkVerified : row.linkVerified;
     const saved = await prisma.module.upsert({
       where: { language_sortOrder: { language: "es", sortOrder: row.sortOrder } },
       create: {
@@ -1065,14 +1071,14 @@ export async function translateMissingSpanish(): Promise<{ updated: number; skip
         sortOrder: row.sortOrder,
         ...sharedSpanishFields(row),
         ...text,
-        ...linkMeta(link, row.videoCount, row.credit),
+        ...linkMeta(link, row.videoCount, row.credit, linkVerified),
         archived: row.archived,
         manualTranslation: false,
       },
       update: {
         ...sharedSpanishFields(row),
         ...text,
-        ...linkMeta(link, row.videoCount, row.credit),
+        ...linkMeta(link, row.videoCount, row.credit, linkVerified),
         manualTranslation: false,
       },
     });
@@ -1116,7 +1122,7 @@ async function syncSpanishFromEnglish(
         ...sharedSpanishFields(english),
         name: decision.text.name.slice(0, 160),
         videoTitles: decision.text.videoTitles,
-        ...linkMeta(decision.link, english.videoCount, english.credit),
+        ...linkMeta(decision.link, english.videoCount, english.credit, english.linkVerified),
         archived: english.archived,
         manualTranslation: Boolean(options.manualText),
       },
@@ -1144,7 +1150,12 @@ async function syncSpanishFromEnglish(
       ...sharedSpanishFields(english),
       name: decision.text.name.slice(0, 160),
       videoTitles: decision.text.videoTitles,
-      ...linkMeta(decision.link, english.videoCount, english.credit),
+      ...linkMeta(
+        decision.link,
+        english.videoCount,
+        english.credit,
+        decision.link.trim() === spanish.link.trim() ? spanish.linkVerified : english.linkVerified,
+      ),
       manualTranslation: options.manualText ? true : decision.manual,
     },
   });
@@ -1163,12 +1174,31 @@ function sharedSpanishFields(english: { section: string; timeLabel: string; time
   };
 }
 
-function linkMeta(link: string, videoCount: number | null, credit: string | null) {
+function linkMeta(link: string, videoCount: number | null, credit: string | null, linkVerified = false) {
   return {
     link,
-    needsReview: /regId=/i.test(link),
+    linkVerified,
+    needsReview: moduleNeedsReview(link, linkVerified),
     kind: moduleKind({ link, videoCount, credit }),
   };
+}
+
+export async function markModuleLinkOk(id: string) {
+  await requireAdmin();
+  const current = await prisma.module.findUnique({ where: { id } });
+  if (!current) throw new Error("That module is not in the catalog.");
+  const twin = await prisma.module.findFirst({
+    where: {
+      language: current.language === "en" ? "es" : "en",
+      sortOrder: current.sortOrder,
+    },
+  });
+  const ids = [current.id];
+  if (twin && twin.link.trim() === current.link.trim()) ids.push(twin.id);
+  await prisma.module.updateMany({
+    where: { id: { in: ids } },
+    data: { linkVerified: true, needsReview: false },
+  });
 }
 
 async function ensureLanguageProgress(moduleId: string, language: string) {
@@ -1214,7 +1244,7 @@ function catalogWrite(language: "en" | "es", section: SectionId, input: {
     link,
     videoTitles: input.videoTitles.trim(),
     note: input.note.trim().slice(0, 400),
-    needsReview: /regId=/i.test(link),
+    needsReview: moduleNeedsReview(link),
     kind: moduleKind({ link, videoCount, credit }),
     archived: false,
   };

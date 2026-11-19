@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import {
   commitImport,
   createStaff,
+  markModuleLinkOk,
   matchLogin,
   previewDevelopmentReport,
   setStorePassword,
@@ -265,6 +266,16 @@ export async function addModuleAction(formData: FormData) {
   }
   refreshAll();
   redirect(`/admin/modules?lang=${language}&saved=added${warning}`);
+}
+
+export async function markModuleLinkOkAction(id: string) {
+  try {
+    await markModuleLinkOk(id);
+    refreshAll();
+    return { ok: true as const };
+  } catch (error) {
+    return { ok: false as const, error: message(error) };
+  }
 }
 
 export async function moveModuleSectionAction(id: string, section: string) {

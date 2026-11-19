@@ -17,9 +17,18 @@ export type ModuleSeed = {
   link: string;
   videoTitles: string;
   needsReview: boolean;
+  linkVerified: boolean;
   kind: "campus" | "floor" | "app";
   note: string;
 };
+
+export function moduleNeedsReview(link: string, linkVerified = false): boolean {
+  return /regId=/i.test(link) && !linkVerified;
+}
+
+export function seedLinkVerified(link: string): boolean {
+  return link.includes("cours000000000020034");
+}
 
 export function moduleCsvPath(): string {
   return path.join(process.cwd(), "data", "module-links.csv");
@@ -45,6 +54,7 @@ export function loadModuleSeeds(csvText?: string): ModuleSeed[] {
     const creditRaw = cell(row, "credit").trim();
     const credit = creditRaw || null;
     const name = cell(row, "module").trim();
+    const linkVerified = seedLinkVerified(link);
     const timeLabel = cell(row, "time").trim();
     const note = name.startsWith("HazMat")
       ? "The master sheet hardcodes app id 5207 / 162067 in this name on every restaurant. Confirm the id before a crew member uses it."
@@ -61,7 +71,8 @@ export function loadModuleSeeds(csvText?: string): ModuleSeed[] {
       credit,
       link,
       videoTitles: cell(row, "video_titles").trim(),
-      needsReview: /regId=/i.test(link),
+      needsReview: moduleNeedsReview(link, linkVerified),
+      linkVerified,
       kind: moduleKind({ link, videoCount, credit }),
       note,
     });

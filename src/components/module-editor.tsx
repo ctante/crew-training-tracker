@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { moveModuleAction, moveModuleSectionAction, removeModuleAction, restoreModuleAction, retranslateModuleAction, saveModuleAction } from "@/app/actions";
+import { markModuleLinkOkAction, moveModuleAction, moveModuleSectionAction, removeModuleAction, restoreModuleAction, retranslateModuleAction, saveModuleAction } from "@/app/actions";
 import { LinkHint, ModuleLinks } from "@/components/module-links";
 import { Flag, fieldClass, ghostButton, primaryButton } from "@/components/ui";
 import { SECTIONS, type SectionId } from "@/lib/constants";
@@ -63,7 +63,7 @@ export function ModuleEditor({ modules, language }: { modules: ModuleTemplate[];
             Collapse all
           </button>
           <p className="text-sm text-ink/70">
-            {review} link{review === 1 ? "" : "s"} in this language need review.
+            {review} link{review === 1 ? "" : "s"} in this language {review === 1 ? "needs" : "need"} review.
           </p>
         </div>
       </div>
@@ -170,7 +170,7 @@ function ModuleForm({
   const [status, setStatus] = useState("");
   const [pending, startTransition] = useTransition();
   const titles = splitTitles(videoTitles);
-  const needsReview = /regId=/i.test(link);
+  const needsReview = link.trim() === module.link.trim() ? module.needsReview : /regId=/i.test(link);
 
   return (
     <form
@@ -220,6 +220,26 @@ function ModuleForm({
           {module.kind === "campus" ? "Campus" : module.kind === "app" ? "App check" : "On the floor"}
         </Flag>
         {needsReview ? <Flag kind="review">Needs review</Flag> : null}
+        {needsReview ? (
+          <button
+            className={ghostButton}
+            type="button"
+            disabled={pending}
+            onClick={() =>
+              startTransition(async () => {
+                const result = await markModuleLinkOkAction(module.id);
+                if (!result.ok) {
+                  setStatus(result.error);
+                  return;
+                }
+                setStatus("Link marked OK.");
+                router.refresh();
+              })
+            }
+          >
+            Mark link OK
+          </button>
+        ) : null}
         {module.language === "es" && (esManual || module.manualTranslation) ? <Flag kind="manual">Edited by hand</Flag> : null}
         {module.archived ? <Flag kind="paused">Archived</Flag> : null}
         {module.archived ? null : (
