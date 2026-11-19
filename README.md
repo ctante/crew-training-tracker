@@ -20,6 +20,16 @@ Open http://localhost:3000 and sign in with `APP_PASSWORD`.
 
 Production deployment is in `DEPLOY.md`. The shared password and session secret are set on Vercel, and sample people are left off the live site.
 
+## Live site and beta site
+
+The restaurants use the live site: https://mcd-its.vercel.app. That address follows the `main` branch and the live database.
+
+Ongoing development uses the beta site: https://crew-training-tracker.vercel.app. That address follows the long-lived `beta` branch and a separate database copied from live. A yellow-red banner reading **BETA / TEST SITE** is shown only there, from the `NEXT_PUBLIC_BETA` flag set on that branch.
+
+New work opens a pull request into `beta`. When Chris says to promote, merge `beta` into `main`. That updates the live site. Do not open routine work against `main`.
+
+The weekly roster sync must post to https://mcd-its.vercel.app/api/sync/roster. The old address is the beta site now, so a sync pointed there would change the test database instead of the live one.
+
 The database is only touched through `src/lib/data.ts`. Neon hosts use the Neon serverless driver. Any other Postgres URL uses Prisma's standard client.
 
 ## What is on each page

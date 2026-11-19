@@ -24,9 +24,17 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
+  const beta = process.env.NEXT_PUBLIC_BETA === "1";
   return (
     <html lang="en" className={`${fraunces.variable} ${sourceSans.variable} h-full antialiased`}>
-      <body className="min-h-full">{children}</body>
+      <body className="min-h-full">
+        {beta ? (
+          <div className="sticky top-0 z-50 bg-brick px-4 py-2 text-center text-sm font-bold tracking-wide text-white">
+            BETA / TEST SITE. Changes here do not affect the live restaurants. The live site is mcd-its.vercel.app.
+          </div>
+        ) : null}
+        {children}
+      </body>
     </html>
   );
 }

@@ -1,6 +1,8 @@
 # Deploy Individual Training System (ITS) on Vercel
 
-The live site is the GitHub repo `ctante/crew-training-tracker`, branch `main`. Vercel builds that branch. The person using ITS only needs the site URL and the team password. The repository name, Vercel project, and site URL stay as they are.
+The live site is the GitHub repo `ctante/crew-training-tracker`, branch `main`, at https://mcd-its.vercel.app. Vercel builds that branch for production. The person using ITS only needs that URL and the team password. The repository name and Vercel project stay as they are.
+
+The beta site is branch `beta` at https://crew-training-tracker.vercel.app. It has its own database. New pull requests target `beta`. Merge `beta` into `main` only when promoting to the live restaurants. The beta site shows a BETA / TEST SITE banner because `NEXT_PUBLIC_BETA` is set for that branch only.
 
 ## 1. Create the Vercel project
 
