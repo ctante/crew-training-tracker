@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { compareTrainers, trainerPositionRank } from "../src/lib/constants";
-import { commitImport, exportTraineeCsv, getDashboard, getTrainee, previewImport, syncDevelopmentReport } from "../src/lib/data";
+import { commitImport, deleteTrainee, exportTraineeCsv, getDashboard, getTrainee, matchLogin, previewImport, setStorePassword, syncDevelopmentReport } from "../src/lib/data";
 import { prisma } from "../src/lib/db";
 import { formatLongDate, parseLooseDate } from "../src/lib/format";
 import { loadModuleSeeds } from "../src/lib/module-csv";
@@ -191,6 +191,38 @@ Zed Unqualified,05207,Shift Manager,No
   } finally {
     await prisma.staff.deleteMany({ where: { name: "Idem Trainer" } });
     await prisma.rosterSync.deleteMany();
+  }
+
+  const storeA = await prisma.store.findUniqueOrThrow({ where: { number: "05207" } });
+  const storeB = await prisma.store.findUniqueOrThrow({ where: { number: "07276" } });
+  const traineeB = await prisma.trainee.findFirstOrThrow({ where: { storeId: storeB.id } });
+  try {
+    const hidden = await getTrainee(traineeB.id, { role: "store", storeId: storeA.id, storeNumber: "05207" });
+    assert.equal(hidden, null);
+    const shown = await getTrainee(traineeB.id, { role: "store", storeId: storeB.id, storeNumber: "07276" });
+    assert.equal(shown?.id, traineeB.id);
+    await assert.rejects(() => deleteTrainee(traineeB.id, { role: "store", storeId: storeA.id, storeNumber: "05207" }));
+    assert.ok(await prisma.trainee.findUnique({ where: { id: traineeB.id } }));
+    const versionBefore = storeA.sessionVersion;
+    await setStorePassword(storeA.id, "restaurant-pass-1", "restaurant-pass-1");
+    const withPassword = await prisma.store.findUniqueOrThrow({ where: { id: storeA.id } });
+    assert.ok(withPassword.passwordHash);
+    assert.equal(withPassword.passwordHash?.includes("restaurant-pass-1"), false);
+    assert.ok(withPassword.sessionVersion > versionBefore);
+    const signedIn = await matchLogin("restaurant-pass-1");
+    assert.equal(signedIn?.role, "store");
+    if (signedIn?.role === "store") assert.equal(signedIn.storeId, storeA.id);
+    await assert.rejects(() => setStorePassword(storeB.id, "restaurant-pass-1", "restaurant-pass-1"));
+    await assert.rejects(() => setStorePassword(storeA.id, process.env.APP_PASSWORD ?? "", process.env.APP_PASSWORD ?? ""));
+    await setStorePassword(storeA.id, "restaurant-pass-2", "restaurant-pass-2");
+    const rotated = await prisma.store.findUniqueOrThrow({ where: { id: storeA.id } });
+    assert.ok(rotated.sessionVersion > withPassword.sessionVersion);
+    assert.equal(await matchLogin("restaurant-pass-1"), null);
+    const adminLogin = await matchLogin(process.env.APP_PASSWORD ?? "");
+    assert.equal(adminLogin?.role, "admin");
+  } finally {
+    await prisma.store.update({ where: { id: storeA.id }, data: { passwordHash: null } });
+    await prisma.store.update({ where: { id: storeB.id }, data: { passwordHash: null } });
   }
 
   console.log("Self-check passed.");

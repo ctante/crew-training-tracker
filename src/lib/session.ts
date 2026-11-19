@@ -1,7 +1,9 @@
 export const SESSION_COOKIE = "crew_session";
 export const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30;
 
-type SessionPayload = { exp: number };
+export type SessionClaims =
+  | { role: "admin"; exp: number }
+  | { role: "store"; storeId: string; version: number; exp: number };
 
 function secret() {
   const value = process.env.SESSION_SECRET;
@@ -46,27 +48,40 @@ export function safeEqual(left: string, right: string) {
   return diff === 0;
 }
 
-export async function createSessionToken() {
+export async function createSessionToken(
+  input: { role: "admin" } | { role: "store"; storeId: string; version: number },
+) {
   const key = secret();
   if (!key) throw new Error("SESSION_SECRET is not set.");
-  const payload: SessionPayload = { exp: Date.now() + SESSION_MAX_AGE_SECONDS * 1000 };
+  const payload: SessionClaims =
+    input.role === "admin"
+      ? { role: "admin", exp: Date.now() + SESSION_MAX_AGE_SECONDS * 1000 }
+      : {
+          role: "store",
+          storeId: input.storeId,
+          version: input.version,
+          exp: Date.now() + SESSION_MAX_AGE_SECONDS * 1000,
+        };
   const body = bytesToBase64Url(new TextEncoder().encode(JSON.stringify(payload)));
   const signature = await hmac(body, key);
   return `${body}.${signature}`;
 }
 
-export async function verifySessionToken(token: string | undefined | null) {
+export async function verifySessionToken(token: string | undefined | null): Promise<SessionClaims | null> {
   const key = secret();
-  if (!key || !token) return false;
+  if (!key || !token) return null;
   const [body, signature, extra] = token.split(".");
-  if (!body || !signature || extra) return false;
+  if (!body || !signature || extra) return null;
   const expected = await hmac(body, key);
-  if (!safeEqual(signature, expected)) return false;
+  if (!safeEqual(signature, expected)) return null;
   try {
-    const payload = JSON.parse(new TextDecoder().decode(base64UrlToBytes(body))) as SessionPayload;
-    return typeof payload.exp === "number" && payload.exp > Date.now();
+    const payload = JSON.parse(new TextDecoder().decode(base64UrlToBytes(body))) as SessionClaims;
+    if (typeof payload.exp !== "number" || payload.exp <= Date.now()) return null;
+    if (payload.role === "admin") return payload;
+    if (payload.role === "store" && payload.storeId && Number.isInteger(payload.version)) return payload;
+    return null;
   } catch {
-    return false;
+    return null;
   }
 }
 

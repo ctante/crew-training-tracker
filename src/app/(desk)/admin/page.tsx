@@ -26,7 +26,10 @@ export default async function AdminPage({
         description="Restaurants are listed by number. Qualified trainers come from the Development Report and are grouped by position."
         actions={
           <>
-            <Link href="/admin/roster" className={primaryButton}>
+            <Link href="/admin/access" className={primaryButton}>
+              Store passwords
+            </Link>
+            <Link href="/admin/roster" className={ghostButton}>
               Trainer roster
             </Link>
             <Link href="/admin/modules" className={ghostButton}>

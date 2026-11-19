@@ -54,7 +54,15 @@ Position order (Crew Trainer, Area Manager, Shift Manager, Assistant Manager, Ge
 
 ## 5. Hand out the URL
 
-Open the Vercel URL on a phone. The sign-in page asks for the team password. The cookie lasts 30 days. Sign out is at the bottom of the menu, and in the top bar on a phone.
+Open the Vercel URL on a phone. The sign-in page asks for a password. The cookie lasts 30 days. The header shows whether you are signed in as the admin (All restaurants) or as one restaurant number. Sign out is in the top bar on a phone and at the bottom of the side menu on a larger screen.
+
+## Store passwords
+
+`APP_PASSWORD` is the admin password. It is the only password that can see every restaurant and the Admin pages.
+
+After the site is up, sign in with that admin password. Open **Admin**, then **Store passwords** (`/admin/access`). Each of the 10 restaurants has its own password. Type a password, type it again, and save. The page shows “Password set” or “No password”. It never shows the password again. A restaurant with no password cannot sign in. Use a different password for each restaurant, and do not reuse the admin password. When you save a new password, anyone already signed in as that restaurant is signed out.
+
+Give each restaurant only its own password. They will see that restaurant’s trainees, trainers, schedule, and progress. They will not see the other restaurants or the import and roster pages.
 
 ## What fails on the first deploy
 

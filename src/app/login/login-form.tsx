@@ -22,7 +22,7 @@ export function LoginForm({ nextPath }: { nextPath: string }) {
       }}
     >
       <label className="text-sm font-semibold" htmlFor="password">
-        Team password
+        Password
         <input
           id="password"
           name="password"
