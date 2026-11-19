@@ -1,14 +1,18 @@
 import Link from "next/link";
+import { access, allows } from "@/lib/access";
 
-const links = [
-  { href: "/admin", label: "Overview" },
-  { href: "/admin/access", label: "Store passwords" },
-  { href: "/admin/roster", label: "Trainer roster" },
-  { href: "/admin/modules", label: "Modules" },
-  { href: "/admin/import", label: "Bulk progress" },
-];
+export async function AdminNav({ current }: { current: string }) {
+  const who = await access();
+  const links = [
+    { href: "/admin", label: "Overview" },
+    allows(who, "users") || who.role === "admin" ? { href: "/admin/users", label: "Users" } : null,
+    who.role === "admin" ? { href: "/admin/permissions", label: "Role defaults" } : null,
+    allows(who, "store_logins") ? { href: "/admin/access", label: "Store passwords" } : null,
+    allows(who, "roster_import") ? { href: "/admin/roster", label: "Trainer roster" } : null,
+    allows(who, "modules") ? { href: "/admin/modules", label: "Modules" } : null,
+    allows(who, "roster_import") ? { href: "/admin/import", label: "Bulk progress" } : null,
+  ].filter((link): link is { href: string; label: string } => Boolean(link));
 
-export function AdminNav({ current }: { current: string }) {
   return (
     <nav className="mb-4 flex gap-2 overflow-x-auto pb-1" aria-label="Admin sections">
       {links.map((link) => {

@@ -7,11 +7,13 @@ export function StoreMultiSelect({
   selected,
   entireOrg,
   hidden,
+  allLabel = "Entire org",
 }: {
   stores: string[];
   selected: string[];
   entireOrg: boolean;
   hidden: Record<string, string>;
+  allLabel?: string;
 }) {
   const [org, setOrg] = useState(entireOrg);
   const [picked, setPicked] = useState<string[]>(entireOrg ? stores : selected);
@@ -38,7 +40,7 @@ export function StoreMultiSelect({
               if (next) setPicked(stores);
             }}
           />
-          Entire org
+          {allLabel}
         </label>
         {stores.map((number) => {
           const checked = org || picked.includes(number);

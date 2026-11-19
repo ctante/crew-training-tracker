@@ -32,7 +32,9 @@ import {
   updateTrainee,
   type SingleContext,
 } from "@/lib/data";
-import { requireAdmin } from "@/lib/access";
+import { access, loadRoleDefaults, requireAdmin } from "@/lib/access";
+import { effectivePermissions, isPermission, isUserRole, type Permission, type UserRole } from "@/lib/permissions";
+import { matchUserLogin, resetUserPermissions, saveAppUser, saveRoleDefaults, type UserDraft } from "@/lib/users";
 import { prisma } from "@/lib/db";
 import { googleSheetsDevelopmentReportSource } from "@/lib/roster/google-sheets";
 import { csvDevelopmentReportSource } from "@/lib/roster/source";
@@ -366,15 +368,64 @@ export async function syncGoogleRosterAction() {
   }
 }
 
-export async function signInAction(input: { password: string; nextPath: string }) {
+export async function signInAction(input: { login?: string; password: string; nextPath: string }) {
   if (!process.env.APP_PASSWORD) return { error: "Access is not configured yet. Add APP_PASSWORD on the host." };
   if (!process.env.SESSION_SECRET) return { error: "Access is not configured yet. Add SESSION_SECRET on the host." };
+  const login = (input.login ?? "").trim();
+  const jar = await cookies();
+  const nextPath = safeNextPath(input.nextPath);
+  if (login) {
+    const match = await matchUserLogin(login, input.password);
+    if (!match) return { error: "That username or password does not match." };
+    jar.set(SESSION_COOKIE, await createSessionToken({ role: "user", userId: match.userId, version: match.version }), sessionCookieOptions());
+    const account = await prisma.appUser.findUnique({ where: { id: match.userId } });
+    const defaults = await loadRoleDefaults();
+    const permissions =
+      account && isUserRole(account.role) ? effectivePermissions(account.role, account.permissionOverrides, defaults) : null;
+    const opensAdmin = Boolean(
+      permissions && (permissions.users || permissions.modules || permissions.roster_import || permissions.store_logins),
+    );
+    redirect(!opensAdmin && nextPath.startsWith("/admin") ? "/" : nextPath);
+  }
   const match = await matchLogin(input.password);
   if (!match) return { error: "That password does not match." };
-  const jar = await cookies();
   jar.set(SESSION_COOKIE, await createSessionToken(match), sessionCookieOptions());
-  const nextPath = safeNextPath(input.nextPath);
-  redirect(match.role === "store" && nextPath.startsWith("/admin") ? "/" : nextPath);
+  redirect(match.role === "user" && nextPath.startsWith("/admin") ? "/" : nextPath);
+}
+
+export async function saveUserAction(input: UserDraft) {
+  try {
+    const who = await access();
+    const defaults = await loadRoleDefaults();
+    const id = await saveAppUser(who, input, defaults);
+    refreshAll();
+    return { id };
+  } catch (error) {
+    return { error: message(error) };
+  }
+}
+
+export async function resetUserPermissionsAction(userId: string) {
+  try {
+    const who = await access();
+    await resetUserPermissions(who, userId);
+    refreshAll();
+    return { ok: true as const };
+  } catch (error) {
+    return { error: message(error) };
+  }
+}
+
+export async function saveRoleDefaultsAction(input: { role: UserRole; permissions: Permission[] }) {
+  try {
+    const who = await access();
+    const permissions = input.permissions.filter(isPermission);
+    await saveRoleDefaults(who, input.role, permissions);
+    refreshAll();
+    return { ok: true as const };
+  } catch (error) {
+    return { error: message(error) };
+  }
 }
 
 export async function signOutAction() {

@@ -3,7 +3,8 @@ export const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30;
 
 export type SessionClaims =
   | { role: "admin"; exp: number }
-  | { role: "store"; storeId: string; version: number; exp: number };
+  | { role: "store"; storeId: string; version: number; exp: number }
+  | { role: "user"; userId: string; version: number; exp: number };
 
 function secret() {
   const value = process.env.SESSION_SECRET;
@@ -49,19 +50,20 @@ export function safeEqual(left: string, right: string) {
 }
 
 export async function createSessionToken(
-  input: { role: "admin" } | { role: "store"; storeId: string; version: number },
+  input:
+    | { role: "admin" }
+    | { role: "store"; storeId: string; version: number }
+    | { role: "user"; userId: string; version: number },
 ) {
   const key = secret();
   if (!key) throw new Error("SESSION_SECRET is not set.");
+  const exp = Date.now() + SESSION_MAX_AGE_SECONDS * 1000;
   const payload: SessionClaims =
     input.role === "admin"
-      ? { role: "admin", exp: Date.now() + SESSION_MAX_AGE_SECONDS * 1000 }
-      : {
-          role: "store",
-          storeId: input.storeId,
-          version: input.version,
-          exp: Date.now() + SESSION_MAX_AGE_SECONDS * 1000,
-        };
+      ? { role: "admin", exp }
+      : input.role === "store"
+        ? { role: "store", storeId: input.storeId, version: input.version, exp }
+        : { role: "user", userId: input.userId, version: input.version, exp };
   const body = bytesToBase64Url(new TextEncoder().encode(JSON.stringify(payload)));
   const signature = await hmac(body, key);
   return `${body}.${signature}`;
@@ -79,6 +81,7 @@ export async function verifySessionToken(token: string | undefined | null): Prom
     if (typeof payload.exp !== "number" || payload.exp <= Date.now()) return null;
     if (payload.role === "admin") return payload;
     if (payload.role === "store" && payload.storeId && Number.isInteger(payload.version)) return payload;
+    if (payload.role === "user" && payload.userId && Number.isInteger(payload.version)) return payload;
     return null;
   } catch {
     return null;

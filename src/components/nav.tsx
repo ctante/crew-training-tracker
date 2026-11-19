@@ -28,8 +28,8 @@ const links = [
   },
 ];
 
-export function SideNav({ showAdmin = true }: { showAdmin?: boolean }) {
-  const items = showAdmin ? links : links.filter((link) => link.href !== "/admin");
+export function SideNav({ showAdmin = true, showReports = true }: { showAdmin?: boolean; showReports?: boolean }) {
+  const items = links.filter((link) => (link.href === "/admin" ? showAdmin : link.href === "/reports" ? showReports : true));
   return (
     <nav className="flex flex-1 flex-col gap-1 px-3 py-4" aria-label="Main">
       {items.map((link) => (
@@ -39,11 +39,12 @@ export function SideNav({ showAdmin = true }: { showAdmin?: boolean }) {
   );
 }
 
-export function TabNav({ showAdmin = true }: { showAdmin?: boolean }) {
-  const items = showAdmin ? links : links.filter((link) => link.href !== "/admin");
+export function TabNav({ showAdmin = true, showReports = true }: { showAdmin?: boolean; showReports?: boolean }) {
+  const items = links.filter((link) => (link.href === "/admin" ? showAdmin : link.href === "/reports" ? showReports : true));
+  const columns = items.length === 6 ? "grid-cols-6" : items.length === 5 ? "grid-cols-5" : "grid-cols-4";
   return (
     <nav
-      className={`fixed inset-x-0 bottom-0 z-20 grid border-t border-white/10 bg-bark px-1 pb-[max(0.4rem,env(safe-area-inset-bottom))] pt-1 lg:hidden ${showAdmin ? "grid-cols-6" : "grid-cols-5"}`}
+      className={`fixed inset-x-0 bottom-0 z-20 grid border-t border-white/10 bg-bark px-1 pb-[max(0.4rem,env(safe-area-inset-bottom))] pt-1 lg:hidden ${columns}`}
       aria-label="Main"
     >
       {items.map((link) => (

@@ -86,6 +86,7 @@ export default async function ReportsPage({
             stores={data.stores}
             selected={data.selected}
             entireOrg={data.entireOrg}
+            allLabel={data.orgWide ? "Entire org" : "Your restaurants"}
             hidden={{ report, range: data.range === "all" ? "" : data.range, from: query.from, to: query.to }}
           />
         </div>

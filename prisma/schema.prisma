@@ -30,6 +30,38 @@ model Store {
   updatedAt      DateTime  @updatedAt
   staff          Staff[]
   trainees       Trainee[]
+  appUsers       AppUserStore[]
+}
+
+model AppUser {
+  id             String         @id @default(cuid())
+  name           String
+  login          String         @unique
+  passwordHash   String
+  role           String
+  allStores      Boolean        @default(false)
+  active         Boolean        @default(true)
+  sessionVersion Int            @default(1)
+  lastSignedInAt DateTime?
+  permissionOverrides Json      @default("{}")
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  stores         AppUserStore[]
+}
+
+model RoleDefault {
+  role        String @id
+  permissions Json
+}
+
+model AppUserStore {
+  userId String
+  storeId String
+  user   AppUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  store  Store   @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@id([userId, storeId])
+  @@index([storeId])
 }
 
 model Staff {

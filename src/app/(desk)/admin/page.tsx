@@ -2,6 +2,7 @@ import Link from "next/link";
 import { resetSampleAction } from "@/app/actions";
 import { AdminNav } from "@/components/admin-nav";
 import { Flash, PageHeader } from "@/components/ui";
+import { access, allows } from "@/lib/access";
 import { one } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -10,24 +11,40 @@ export const metadata = { title: "Admin" };
 
 const tiles = [
   {
+    href: "/admin/users",
+    title: "Users",
+    text: "Accounts, roles, and the permissions each person has.",
+    show: "users" as const,
+  },
+  {
+    href: "/admin/permissions",
+    title: "Role defaults",
+    text: "The permissions a role starts with. Overrides live on each person.",
+    show: "admin" as const,
+  },
+  {
     href: "/admin/access",
     title: "Store passwords",
-    text: "Set the password each restaurant uses to sign in.",
+    text: "The shared User login for a restaurant. The username is the restaurant number.",
+    show: "store_logins" as const,
   },
   {
     href: "/admin/roster",
     title: "Trainer roster",
     text: "Qualified trainers come from the weekly Development Report.",
+    show: "roster_import" as const,
   },
   {
     href: "/admin/modules",
     title: "Modules",
     text: "Add, reorder, or archive modules on the training path.",
+    show: "modules" as const,
   },
   {
     href: "/admin/import",
     title: "Bulk progress",
     text: "Import a sheet of trainee progress or export the current file.",
+    show: "roster_import" as const,
   },
 ];
 
@@ -37,6 +54,8 @@ export default async function AdminPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const params = await searchParams;
+  const who = await access();
+  const visible = tiles.filter((tile) => (tile.show === "admin" ? who.role === "admin" : allows(who, tile.show)));
 
   return (
     <div>
@@ -48,7 +67,7 @@ export default async function AdminPage({
       />
       <Flash error={one(params.error)} notice="" />
       <div className="grid gap-3 sm:grid-cols-2">
-        {tiles.map((tile) => (
+        {visible.map((tile) => (
           <Link
             key={tile.href}
             href={tile.href}
@@ -60,10 +79,11 @@ export default async function AdminPage({
         ))}
       </div>
 
+      {who.role === "admin" ? (
       <section className="mt-8 rounded-3xl border border-brick/30 bg-red-50 p-4">
         <h2 className="font-display text-2xl text-brick-dark">Restore sample data</h2>
         <p className="mt-1 max-w-2xl text-sm text-brick-dark/80">
-          This deletes trainees, progress, module edits, and people, then loads the fictional Sample set again.
+          This deletes trainees, progress, module edits, people, and user accounts, then loads the fictional Sample set again.
         </p>
         <form action={resetSampleAction} className="mt-3">
           <label className="flex items-center gap-2 text-sm">
@@ -75,6 +95,7 @@ export default async function AdminPage({
           </button>
         </form>
       </section>
+      ) : null}
     </div>
   );
 }

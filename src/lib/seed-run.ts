@@ -1,4 +1,5 @@
 import type { PrismaClient } from "@prisma/client";
+import { migrateSharedStoreUsers } from "./users";
 import { TRAINER_POSITION_ORDER } from "./constants";
 import { loadModuleSeeds, seedLinkVerified } from "./module-csv";
 import {
@@ -46,6 +47,7 @@ export async function seedCatalog(prisma: PrismaClient) {
       });
     }
   }
+  await migrateSharedStoreUsers(prisma);
   console.log(
     `Catalog ready: ${SAMPLE_STORES.length} restaurants, ${seeds.length} modules. Position order: ${TRAINER_POSITION_ORDER.join(", ")}.`,
   );
@@ -168,6 +170,7 @@ export async function seedSampleContent(prisma: PrismaClient) {
 }
 
 export async function seedDatabase(prisma: PrismaClient) {
+  await prisma.appUser.deleteMany();
   await prisma.traineeModule.deleteMany();
   await prisma.trainee.deleteMany();
   await prisma.staff.deleteMany();

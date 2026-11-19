@@ -1,8 +1,10 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { AdminNav } from "@/components/admin-nav";
 import { RosterImport } from "@/components/roster-import";
 import { PageHeader, ghostButton } from "@/components/ui";
 import { TRAINER_POSITION_ORDER, groupByTrainerPosition } from "@/lib/constants";
+import { access, allows } from "@/lib/access";
 import { getRosterPage } from "@/lib/data";
 import { formatDateTimeEt, storeLabel } from "@/lib/format";
 
@@ -11,6 +13,8 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Trainer roster" };
 
 export default async function RosterPage() {
+  const who = await access();
+  if (!allows(who, "roster_import")) redirect("/");
   const roster = await getRosterPage();
 
   return (

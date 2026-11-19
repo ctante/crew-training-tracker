@@ -21,10 +21,14 @@ export function TraineeEditor({
   modules,
   trainers,
   today,
+  canSchedule,
+  canSignOff,
 }: {
   modules: EditorModule[];
   trainers: TrainerOption[];
   today: string;
+  canSchedule: boolean;
+  canSignOff: boolean;
 }) {
   return (
     <div className="space-y-3">
@@ -43,7 +47,7 @@ export function TraineeEditor({
                 Sheet block · {module.blockName} · {module.blockHours}
               </p>
             ) : null}
-            <ModuleCard module={module} trainers={trainers} today={today} />
+            <ModuleCard module={module} trainers={trainers} today={today} canSchedule={canSchedule} canSignOff={canSignOff} />
           </div>
         );
       })}
@@ -55,10 +59,14 @@ function ModuleCard({
   module,
   trainers,
   today,
+  canSchedule,
+  canSignOff,
 }: {
   module: EditorModule;
   trainers: TrainerOption[];
   today: string;
+  canSchedule: boolean;
+  canSignOff: boolean;
 }) {
   const [state, setState] = useState<CardState>({
     scheduledDate: module.scheduledDate,
@@ -143,16 +151,21 @@ function ModuleCard({
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
         <label className="block text-sm font-semibold">
           Training date
-          <input
-            type="date"
-            className={`${fieldClass} mt-1`}
-            value={state.scheduledDate}
-            onChange={(event) => persist({ ...state, scheduledDate: event.target.value })}
-          />
-          {state.scheduledDate ? (
+          {canSchedule ? (
+            <input
+              type="date"
+              className={`${fieldClass} mt-1`}
+              value={state.scheduledDate}
+              onChange={(event) => persist({ ...state, scheduledDate: event.target.value })}
+            />
+          ) : (
+            <span className="mt-1 block font-normal text-ink/70">{state.scheduledDate ? formatShortDate(state.scheduledDate) : "Not scheduled"}</span>
+          )}
+          {canSchedule && state.scheduledDate ? (
             <span className="mt-1 block font-normal text-ink/55">{formatShortDate(state.scheduledDate)}</span>
           ) : null}
         </label>
+        {canSchedule ? (
         <label className="block text-sm font-semibold">
           Qualified trainer
           <select
@@ -187,8 +200,15 @@ function ModuleCard({
             <span className="mt-1 block font-normal text-ink/55">From this restaurant&apos;s qualified roster.</span>
           )}
         </label>
+        ) : (
+          <p className="text-sm">
+            <span className="font-semibold">Trainer</span>
+            <span className="mt-1 block text-ink/70">{module.trainerLabel || "Unassigned"}</span>
+          </p>
+        )}
       </div>
 
+      {canSignOff ? (
       <div className="mt-3 flex flex-wrap items-end gap-3">
         <label className="flex min-h-11 items-center gap-2 text-sm font-semibold">
           <input
@@ -221,6 +241,9 @@ function ModuleCard({
           {pending ? "Saving" : status}
         </p>
       </div>
+      ) : state.completed ? (
+        <p className="mt-3 text-sm font-semibold">Completed {state.completedDate ? formatShortDate(state.completedDate) : ""}</p>
+      ) : null}
     </article>
   );
 }

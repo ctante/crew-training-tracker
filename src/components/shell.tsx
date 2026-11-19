@@ -5,11 +5,15 @@ import { SideNav, TabNav } from "./nav";
 export function Shell({
   sampleCount,
   showAdmin,
+  showReports,
+  showAddTrainee,
   signedInLabel,
   children,
 }: {
   sampleCount: number;
   showAdmin: boolean;
+  showReports: boolean;
+  showAddTrainee: boolean;
   signedInLabel: string;
   children: React.ReactNode;
 }) {
@@ -20,7 +24,7 @@ export function Shell({
           <p className="font-display text-xl leading-tight text-sun">Individual Training System (ITS)</p>
           <p className="mt-1 text-sm text-white/70">Signed in · {signedInLabel}</p>
         </Link>
-        <SideNav showAdmin={showAdmin} />
+        <SideNav showAdmin={showAdmin} showReports={showReports} />
         <form action={signOutAction} className="px-5 pb-5">
           <button type="submit" className="text-xs font-semibold text-white/70 underline-offset-2 hover:underline">
             Sign out
@@ -39,9 +43,11 @@ export function Shell({
                 Sign out
               </button>
             </form>
-            <Link href="/trainees/new" className="rounded-full bg-brick px-3 py-2 text-sm font-semibold text-white">
-              Add trainee
-            </Link>
+            {showAddTrainee ? (
+              <Link href="/trainees/new" className="rounded-full bg-brick px-3 py-2 text-sm font-semibold text-white">
+                Add trainee
+              </Link>
+            ) : null}
           </div>
         </header>
         {sampleCount > 0 ? (
@@ -52,7 +58,7 @@ export function Shell({
         ) : null}
         <main className="mx-auto w-full max-w-6xl px-4 py-5 pb-28 lg:px-8 lg:py-8 lg:pb-12">{children}</main>
       </div>
-      <TabNav showAdmin={showAdmin} />
+      <TabNav showAdmin={showAdmin} showReports={showReports} />
     </div>
   );
 }

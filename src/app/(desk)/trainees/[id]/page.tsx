@@ -4,6 +4,7 @@ import { addSecondPathAction, changeLanguageAction, deleteTraineeAction, setTrai
 import { TraineeEditor } from "@/components/trainee-editor";
 import { Flag, Flash, PageHeader, ProgressBar, fieldClass, ghostButton, primaryButton } from "@/components/ui";
 import { SECTION_TITLES, languageName } from "@/lib/constants";
+import { access, allows } from "@/lib/access";
 import { getTrainee } from "@/lib/data";
 import { formatMinutes, one, storeLabel, todayIso } from "@/lib/format";
 
@@ -24,8 +25,13 @@ export default async function TraineePage({
 }) {
   const { id } = await params;
   const query = await searchParams;
+  const who = await access();
   const trainee = await getTrainee(id);
   if (!trainee) notFound();
+  const canEdit = allows(who, "trainees_edit");
+  const canDeactivate = allows(who, "trainees_deactivate");
+  const canPaths = allows(who, "paths");
+  const canExport = allows(who, "export");
   const today = todayIso();
   const saved = one(query.saved);
   const notice =
@@ -46,9 +52,11 @@ export default async function TraineePage({
         title="Individual Training Schedule (ITS)"
         description={`${trainee.pathLabel} · ${languageName(trainee.language)} · started ${trainee.startDate}${trainee.firstPathCompletedOn ? ` · first path finished ${trainee.firstPathCompletedOn}` : ""}`}
         actions={
-          <a href={`/api/export/${trainee.id}`} className={ghostButton}>
-            Export ITS
-          </a>
+          canExport ? (
+            <a href={`/api/export/${trainee.id}`} className={ghostButton}>
+              Export ITS
+            </a>
+          ) : null
         }
       />
       <Flash error={one(query.error)} notice={notice} />
@@ -61,7 +69,7 @@ export default async function TraineePage({
         {!trainee.path ? <Flag kind="review">Choose path</Flag> : null}
       </div>
 
-      {!trainee.path ? (
+      {canPaths && !trainee.path ? (
         <form action={setTraineePathAction} className="mb-4 rounded-3xl border border-amber-300 bg-sun/40 p-4">
           <input type="hidden" name="id" value={trainee.id} />
           <p className="font-semibold">Choose path</p>
@@ -77,12 +85,12 @@ export default async function TraineePage({
             </button>
           </div>
         </form>
-      ) : (
+      ) : canPaths ? (
         <form action={setTraineePathAction} className="mb-4 flex flex-wrap items-end gap-3">
           <input type="hidden" name="id" value={trainee.id} />
           <label className="text-sm font-semibold">
             Path
-            <select className={`${fieldClass} mt-1`} name="path" defaultValue={trainee.path}>
+            <select className={`${fieldClass} mt-1`} name="path" defaultValue={trainee.path ?? "SERVICE"}>
               <option value="SERVICE">Service</option>
               <option value="PRODUCTION">Production</option>
             </select>
@@ -91,9 +99,9 @@ export default async function TraineePage({
             Save path
           </button>
         </form>
-      )}
+      ) : null}
 
-      {trainee.firstPathComplete && !trainee.secondPath ? (
+      {canPaths && trainee.firstPathComplete && !trainee.secondPath ? (
         <form action={addSecondPathAction} className="mb-4 rounded-3xl border border-line bg-card p-4">
           <input type="hidden" name="id" value={trainee.id} />
           <p className="font-semibold">Add second path</p>
@@ -140,52 +148,72 @@ export default async function TraineePage({
         </div>
       </section>
 
+      {canEdit || canDeactivate ? (
       <details className="mt-4 rounded-3xl border border-line bg-card p-4">
         <summary className="cursor-pointer font-semibold">Edit trainee, language, or status</summary>
         <form action={updateTraineeAction} className="mt-4 grid gap-3 sm:grid-cols-2">
           <input type="hidden" name="id" value={trainee.id} />
-          <label className="text-sm font-semibold">
-            Name
-            <input className={`${fieldClass} mt-1`} name="name" defaultValue={trainee.name} required />
-          </label>
-          <label className="text-sm font-semibold">
-            Restaurant
-            <select className={`${fieldClass} mt-1`} name="storeId" defaultValue={trainee.storeId}>
-              {trainee.stores.map((store) => (
-                <option key={store.id} value={store.id}>
-                  {store.number}
+          {canEdit ? (
+            <>
+              <label className="text-sm font-semibold">
+                Name
+                <input className={`${fieldClass} mt-1`} name="name" defaultValue={trainee.name} required />
+              </label>
+              <label className="text-sm font-semibold">
+                Restaurant
+                <select className={`${fieldClass} mt-1`} name="storeId" defaultValue={trainee.storeId}>
+                  {trainee.stores.map((store) => (
+                    <option key={store.id} value={store.id}>
+                      {store.number}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="text-sm font-semibold">
+                Start date
+                <input className={`${fieldClass} mt-1`} type="date" name="startDate" defaultValue={trainee.startDate} required />
+              </label>
+            </>
+          ) : (
+            <>
+              <input type="hidden" name="name" value={trainee.name} />
+              <input type="hidden" name="storeId" value={trainee.storeId} />
+              <input type="hidden" name="startDate" value={trainee.startDate} />
+            </>
+          )}
+          {canPaths ? (
+            <label className="text-sm font-semibold">
+              Path
+              <select className={`${fieldClass} mt-1`} name="path" required defaultValue={trainee.path ?? ""}>
+                <option value="" disabled>
+                  Choose a path
                 </option>
-              ))}
-            </select>
-          </label>
-          <label className="text-sm font-semibold">
-            Start date
-            <input className={`${fieldClass} mt-1`} type="date" name="startDate" defaultValue={trainee.startDate} required />
-          </label>
-          <label className="text-sm font-semibold">
-            Path
-            <select className={`${fieldClass} mt-1`} name="path" required defaultValue={trainee.path ?? ""}>
-              <option value="" disabled>
-                Choose a path
-              </option>
-              <option value="SERVICE">Service</option>
-              <option value="PRODUCTION">Production</option>
-            </select>
-          </label>
-          <label className="text-sm font-semibold">
-            Status
-            <select className={`${fieldClass} mt-1`} name="status" defaultValue={trainee.status}>
-              <option value="ACTIVE">Active</option>
-              <option value="PAUSED">Paused</option>
-              <option value="COMPLETED">Completed</option>
-            </select>
-          </label>
+                <option value="SERVICE">Service</option>
+                <option value="PRODUCTION">Production</option>
+              </select>
+            </label>
+          ) : (
+            <input type="hidden" name="path" value={trainee.path ?? ""} />
+          )}
+          {canDeactivate ? (
+            <label className="text-sm font-semibold">
+              Status
+              <select className={`${fieldClass} mt-1`} name="status" defaultValue={trainee.status}>
+                <option value="ACTIVE">Active</option>
+                <option value="PAUSED">Paused</option>
+                <option value="COMPLETED">Completed</option>
+              </select>
+            </label>
+          ) : (
+            <input type="hidden" name="status" value={trainee.status} />
+          )}
           <div className="flex items-end">
             <button className={primaryButton} type="submit">
               Save details
             </button>
           </div>
         </form>
+        {canEdit ? (
         <form action={changeLanguageAction} className="mt-4 flex flex-wrap items-end gap-3 border-t border-line pt-4">
           <input type="hidden" name="id" value={trainee.id} />
           <label className="text-sm font-semibold">
@@ -202,6 +230,8 @@ export default async function TraineePage({
             Checks, dates, and trainers stay on the same step number. Names and Campus links change.
           </p>
         </form>
+        ) : null}
+        {canDeactivate ? (
         <form action={deleteTraineeAction} className="mt-4 border-t border-line pt-4">
           <input type="hidden" name="id" value={trainee.id} />
           <label className="flex items-center gap-2 text-sm">
@@ -212,7 +242,9 @@ export default async function TraineePage({
             Remove trainee
           </button>
         </form>
+        ) : null}
       </details>
+      ) : null}
 
       <p className="mt-6 text-sm text-ink/60">
         Campus rows open the training link. Floor rows are hands-on. Credit Auto is recorded by Campus. Credit Manual
@@ -231,7 +263,13 @@ export default async function TraineePage({
           <p className="mt-1 text-sm text-ink/70">No orientation modules yet. They show up here when an admin adds them.</p>
         </section>
       )}
-      <TraineeEditor modules={trainee.modules} trainers={trainee.trainers} today={today} />
+      <TraineeEditor
+        modules={trainee.modules}
+        trainers={trainee.trainers}
+        today={today}
+        canSchedule={allows(who, "schedule")}
+        canSignOff={allows(who, "sign_off")}
+      />
     </div>
   );
 }

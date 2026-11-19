@@ -30,6 +30,19 @@ New work opens a pull request into `beta`. When Chris says to promote, merge `be
 
 The weekly roster sync must post to https://mcd-its.vercel.app/api/sync/roster. The old address is the beta site now, so a sync pointed there would change the test database instead of the live one.
 
+## Users
+
+Admin, then Users, holds individual accounts. Each account has a name, a username or email, a password an admin sets, a role, restaurants, and active or inactive. The password is stored hashed and is not shown again. Deactivating someone or setting a new password signs them out. The list shows the last sign-in.
+
+Roles start with these permissions. An admin can change any box for one person. A box that differs from the role is marked Override, and Reset to role defaults clears that. Only an admin can turn on Manage users, Manage modules, Manage roster and import, Manage store logins, or View other stores. Role defaults for User, Manager, and Supervisor can be edited under Admin, then Role defaults. Admins always keep every permission as the role starting point. The last active Admin cannot be deactivated or demoted.
+
+- **User** signs off modules for one restaurant. A restaurant password becomes a User whose username is the restaurant number. People can still leave the username blank and enter that password.
+- **Manager** can also schedule sessions, add trainees, and run reports for one restaurant.
+- **Supervisor** can do that across the assigned restaurants, and can manage Managers and Users for those restaurants.
+- **Admin** can do everything, including modules, the roster, import, and store logins. The admin password still signs in with the username left blank.
+
+A person only sees the restaurants on the account. Reports, the board, and the schedule follow that limit on the server.
+
 The database is only touched through `src/lib/data.ts`. Neon hosts use the Neon serverless driver. Any other Postgres URL uses Prisma's standard client.
 
 ## What is on each page

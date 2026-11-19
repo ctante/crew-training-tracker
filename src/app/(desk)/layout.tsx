@@ -1,6 +1,6 @@
 import { connection } from "next/server";
 import { Shell } from "@/components/shell";
-import { access } from "@/lib/access";
+import { access, allows, canOpenAdmin, signedInLabel } from "@/lib/access";
 import { countSampleTrainees } from "@/lib/data";
 
 export const dynamic = "force-dynamic";
@@ -12,8 +12,10 @@ export default async function DeskLayout({ children }: { children: React.ReactNo
   return (
     <Shell
       sampleCount={sampleCount}
-      showAdmin={who.role === "admin"}
-      signedInLabel={who.role === "store" ? who.storeNumber : "All restaurants"}
+      showAdmin={canOpenAdmin(who)}
+      showReports={allows(who, "reports")}
+      showAddTrainee={allows(who, "trainees_edit")}
+      signedInLabel={signedInLabel(who)}
     >
       {children}
     </Shell>
