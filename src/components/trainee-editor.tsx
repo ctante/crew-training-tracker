@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { saveProgressAction } from "@/app/actions";
+import { ModuleLinks } from "@/components/module-links";
 import { Flag, fieldClass } from "@/components/ui";
 import { groupByTrainerPosition } from "@/lib/constants";
 import { sessionSurface } from "@/lib/session-tone";
@@ -126,19 +127,8 @@ function ModuleCard({
         </p>
       ) : null}
 
-      <div className="mt-3 flex flex-wrap items-center gap-2">
-        {module.link ? (
-          <a
-            href={module.link}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex min-h-11 items-center rounded-full bg-campus px-4 text-sm font-semibold text-white"
-          >
-            Open module
-          </a>
-        ) : (
-          <span className="text-sm text-ink/55">Hands-on session. Schedule a trainer and a date.</span>
-        )}
+      <div className="mt-3 space-y-2">
+        <ModuleLinks link={module.link} />
         {module.videoTitles.length > 0 ? (
           <details className="text-sm">
             <summary className="cursor-pointer font-semibold text-campus">Video titles</summary>

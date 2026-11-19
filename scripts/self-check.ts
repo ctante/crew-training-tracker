@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { compareTrainers, trainerPositionRank } from "../src/lib/constants";
-import { addCatalogModule, addSecondPath, commitImport, createTrainee, deleteTrainee, exportTraineeCsv, getDashboard, getScheduledSessions, getTrainee, matchLogin, moveCatalogModule, previewImport, removeCatalogModule, setStorePassword, syncDevelopmentReport } from "../src/lib/data";
+import { addCatalogModule, addSecondPath, commitImport, createTrainee, deleteTrainee, exportTraineeCsv, getDashboard, getScheduledSessions, getTrainee, matchLogin, moveCatalogModule, moveCatalogModuleToSection, previewImport, removeCatalogModule, setStorePassword, syncDevelopmentReport, updateModuleTemplate } from "../src/lib/data";
+import { parseModuleLinks } from "../src/lib/drive";
+import { spanishTextUpdate } from "../src/lib/translate";
 import { getReports } from "../src/lib/reports";
 import { prisma } from "../src/lib/db";
 import { daysBetween, formatLongDate, parseLooseDate, selectReportStores, sessionWindow } from "../src/lib/format";
@@ -10,6 +12,54 @@ import { parseDevelopmentReport } from "../src/lib/roster/parse";
 import { csvDevelopmentReportSource } from "../src/lib/roster/source";
 
 async function main() {
+  const driveFile = parseModuleLinks("https://drive.google.com/file/d/abc123/view");
+  assert.equal(driveFile.files[0]?.embed, "https://drive.google.com/file/d/abc123/preview");
+  assert.equal(driveFile.files[0]?.href, "https://drive.google.com/file/d/abc123/view");
+  assert.equal(parseModuleLinks("https://drive.google.com/open?id=abc123").files[0]?.id, "abc123");
+  assert.equal(parseModuleLinks("https://drive.google.com/uc?id=abc123&export=download").files[0]?.id, "abc123");
+  assert.equal(parseModuleLinks("https://docs.google.com/file/d/abc123/edit").files[0]?.embed, "https://drive.google.com/file/d/abc123/preview");
+  const folder = parseModuleLinks("https://drive.google.com/drive/folders/folder1");
+  assert.equal(folder.files.length, 0);
+  assert.equal(folder.folders[0]?.href, "https://drive.google.com/drive/folders/folder1");
+  assert.equal(parseModuleLinks("https://drive.google.com/folderview?id=folder1").folders[0]?.id, "folder1");
+  const campus = parseModuleLinks("https://campus.example/course");
+  assert.equal(campus.files.length, 0);
+  assert.equal(campus.other[0], "https://campus.example/course");
+  const several = parseModuleLinks("https://drive.google.com/file/d/one/view\nhttps://drive.google.com/file/d/two/preview");
+  assert.deepEqual(several.files.map((file) => file.id), ["one", "two"]);
+  const keptSpanish = spanishTextUpdate({
+    manual: true,
+    force: false,
+    english: { name: "Fries", videoTitles: "Salt", note: "", link: "https://campus.example/new" },
+    spanish: { name: "Papas", videoTitles: "Sal", note: "", link: "https://campus.example/es" },
+    previousEnglishLink: "https://campus.example/old",
+    translated: { name: "Papas fritas", videoTitles: "Sal", note: "" },
+  });
+  assert.equal(keptSpanish.text.name, "Papas");
+  assert.equal(keptSpanish.link, "https://campus.example/es");
+  assert.equal(keptSpanish.manual, true);
+  const copied = spanishTextUpdate({
+    manual: false,
+    force: false,
+    english: { name: "Fries", videoTitles: "Salt", note: "Hot", link: "https://campus.example/new" },
+    spanish: { name: "Papas", videoTitles: "", note: "", link: "https://campus.example/old" },
+    previousEnglishLink: "https://campus.example/old",
+    translated: { name: "Papas fritas", videoTitles: "Sal", note: "Caliente" },
+  });
+  assert.equal(copied.text.name, "Papas fritas");
+  assert.equal(copied.link, "https://campus.example/new");
+  assert.equal(copied.manual, false);
+  const failed = spanishTextUpdate({
+    manual: false,
+    force: false,
+    english: { name: "Fries", videoTitles: "", note: "", link: "" },
+    spanish: { name: "", videoTitles: "", note: "", link: "" },
+    previousEnglishLink: "",
+    translated: null,
+  });
+  assert.equal(failed.text.name, "Fries");
+  assert.match(failed.warning ?? "", /English text was kept/);
+
   const seeds = loadModuleSeeds();
   assert.equal(seeds.length, 72);
   assert.equal(seeds.filter((row) => row.language === "en" && row.link).length, 24);
@@ -434,12 +484,171 @@ Zed Unqualified,05207,Shift Manager,No
     assert.ok(await prisma.traineeModule.findUnique({ where: { id: history.id } }));
     const hidden = await getTrainee(history.traineeId);
     assert.equal(hidden?.modules.some((module) => module.name === "Archive Check Module"), false);
+
+    const locked = await addCatalogModule({
+      section: "ORIENTATION",
+      nameEn: "Lock Check",
+      nameEs: "Chequeo manual",
+      timeLabel: "5 min",
+      videoCount: "1",
+      credit: "",
+      link: "https://campus.example/a",
+      videoTitles: "Intro",
+      note: "",
+    });
+    await updateModuleTemplate(locked.esId, {
+      name: "Chequeo a mano",
+      timeLabel: "5 min",
+      videoCount: "1",
+      credit: "",
+      link: "https://campus.example/es",
+      videoTitles: "Inicio",
+      note: "",
+    });
+    await updateModuleTemplate(locked.enId, {
+      name: "Lock Check Updated",
+      timeLabel: "12 min",
+      videoCount: "2",
+      credit: "Auto",
+      link: "https://campus.example/b",
+      videoTitles: "Intro revised",
+      note: "Keep Spanish",
+    });
+    const lockedEs = await prisma.module.findUniqueOrThrow({ where: { id: locked.esId } });
+    assert.equal(lockedEs.name, "Chequeo a mano");
+    assert.equal(lockedEs.videoTitles, "Inicio");
+    assert.equal(lockedEs.manualTranslation, true);
+    assert.equal(lockedEs.timeLabel, "12 min");
+    assert.equal(lockedEs.videoCount, 2);
+    assert.equal(lockedEs.credit, "Auto");
+    assert.equal(lockedEs.link, "https://campus.example/es");
+    assert.equal(lockedEs.section, "ORIENTATION");
+
+    const shared = await addCatalogModule({
+      section: "ORIENTATION",
+      nameEn: "Link Copy",
+      nameEs: "Enlace copia",
+      timeLabel: "5 min",
+      videoCount: "",
+      credit: "",
+      link: "https://campus.example/shared",
+      videoTitles: "",
+      note: "",
+    });
+    await updateModuleTemplate(shared.enId, {
+      name: "Link Copy",
+      timeLabel: "5 min",
+      videoCount: "",
+      credit: "",
+      link: "https://campus.example/shared-new",
+      videoTitles: "",
+      note: "",
+    });
+    const sharedEs = await prisma.module.findUniqueOrThrow({ where: { id: shared.esId } });
+    assert.equal(sharedEs.link, "https://campus.example/shared-new");
+    assert.equal(sharedEs.name, "Enlace copia");
+
+    const sectionMove = await addCatalogModule({
+      section: "FOUNDATION",
+      nameEn: "Section Move",
+      nameEs: "Mover seccion",
+      timeLabel: "5 min",
+      videoCount: "",
+      credit: "",
+      link: "",
+      videoTitles: "",
+      note: "",
+    });
+    const sectionStore = await prisma.store.findUniqueOrThrow({ where: { number: "05207" } });
+    const serviceTraineeId = await createTrainee({
+      name: "Section Service Check",
+      storeId: sectionStore.id,
+      startDate: "2026-11-01",
+      language: "en",
+      position: "",
+      path: "SERVICE",
+    });
+    const productionTraineeId = await createTrainee({
+      name: "Section Production Check",
+      storeId: sectionStore.id,
+      startDate: "2026-11-01",
+      language: "en",
+      position: "",
+      path: "PRODUCTION",
+    });
+    const serviceRow = await prisma.traineeModule.findFirstOrThrow({
+      where: { traineeId: serviceTraineeId, moduleId: sectionMove.enId },
+    });
+    await prisma.traineeModule.update({
+      where: { id: serviceRow.id },
+      data: { completed: true, completedDate: "2026-11-02" },
+    });
+    const productionBefore = await getTrainee(productionTraineeId);
+    assert.equal(productionBefore?.modules.some((module) => module.name === "Section Move"), true);
+    await moveCatalogModuleToSection(sectionMove.enId, "SERVICE");
+    const movedEn = await prisma.module.findUniqueOrThrow({ where: { id: sectionMove.enId } });
+    const movedEs = await prisma.module.findUniqueOrThrow({ where: { id: sectionMove.esId } });
+    const serviceOrders = await prisma.module.findMany({ where: { language: "en", section: "SERVICE" }, select: { sortOrder: true } });
+    assert.equal(movedEn.section, "SERVICE");
+    assert.equal(movedEs.section, "SERVICE");
+    assert.equal(movedEs.sectionLabel, "Servicio");
+    assert.equal(movedEn.sortOrder, movedEs.sortOrder);
+    assert.equal(movedEn.sortOrder, Math.max(...serviceOrders.map((row) => row.sortOrder)));
+    const keptRow = await prisma.traineeModule.findUniqueOrThrow({ where: { id: serviceRow.id } });
+    assert.equal(keptRow.completed, true);
+    assert.equal(keptRow.completedDate, "2026-11-02");
+    const serviceAfter = await getTrainee(serviceTraineeId);
+    const productionAfter = await getTrainee(productionTraineeId);
+    const serviceModule = serviceAfter?.modules.find((module) => module.name === "Section Move");
+    assert.equal(serviceModule?.section, "SERVICE");
+    assert.equal(serviceModule?.completed, true);
+    assert.equal(productionAfter?.modules.some((module) => module.name === "Section Move"), false);
+    assert.equal(productionAfter?.progress.total, (productionBefore?.progress.total ?? 0) - 1);
   } finally {
+    await prisma.trainee.deleteMany({
+      where: { name: { in: ["Section Service Check", "Section Production Check"] } },
+    });
     await prisma.traineeModule.deleteMany({
-      where: { module: { name: { in: ["Delete Check Module", "Modulo para borrar", "Archive Check Module", "Modulo para archivar"] } } },
+      where: {
+        module: {
+          name: {
+            in: [
+              "Delete Check Module",
+              "Modulo para borrar",
+              "Archive Check Module",
+              "Modulo para archivar",
+              "Lock Check",
+              "Lock Check Updated",
+              "Chequeo manual",
+              "Chequeo a mano",
+              "Link Copy",
+              "Enlace copia",
+              "Section Move",
+              "Mover seccion",
+            ],
+          },
+        },
+      },
     });
     await prisma.module.deleteMany({
-      where: { name: { in: ["Delete Check Module", "Modulo para borrar", "Archive Check Module", "Modulo para archivar"] } },
+      where: {
+        name: {
+          in: [
+            "Delete Check Module",
+            "Modulo para borrar",
+            "Archive Check Module",
+            "Modulo para archivar",
+            "Lock Check",
+            "Lock Check Updated",
+            "Chequeo manual",
+            "Chequeo a mano",
+            "Link Copy",
+            "Enlace copia",
+            "Section Move",
+            "Mover seccion",
+          ],
+        },
+      },
     });
     for (const row of sortBefore) {
       await prisma.module.update({ where: { id: row.id }, data: { sortOrder: row.sortOrder + 100000 } });

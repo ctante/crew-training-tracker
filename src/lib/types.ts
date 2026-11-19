@@ -137,6 +137,15 @@ export type ModuleTemplate = {
   kind: string;
   note: string;
   archived: boolean;
+  manualTranslation: boolean;
+  spanish: {
+    id: string;
+    name: string;
+    videoTitles: string;
+    note: string;
+    link: string;
+    manualTranslation: boolean;
+  } | null;
 };
 
 export type ScheduledSessionRow = {
