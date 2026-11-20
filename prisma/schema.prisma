@@ -8,6 +8,11 @@ datasource db {
   directUrl = env("DATABASE_URL_UNPOOLED")
 }
 
+model RosterCorrectionDismissal {
+  id          String   @id
+  dismissedAt DateTime
+}
+
 model RosterCorrection {
   id          String   @id @default(cuid())
   storeNumber String

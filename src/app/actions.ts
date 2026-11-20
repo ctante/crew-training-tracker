@@ -46,7 +46,7 @@ import {
   saveDevelopmentWeek,
   updateDevelopmentPerson,
 } from "@/lib/development";
-import { addEmployee, importEmployeeCsv, setEmployeeActive, updateEmployee } from "@/lib/employees";
+import { addEmployee, dismissRosterCorrections, importEmployeeCsv, setEmployeeActive, updateEmployee } from "@/lib/employees";
 import { matchUserLogin, resetUserPermissions, saveAppUser, saveRoleDefaults, type UserDraft } from "@/lib/users";
 import { prisma } from "@/lib/db";
 import { SESSION_COOKIE, createSessionToken, safeNextPath, sessionCookieOptions } from "@/lib/session";
@@ -450,6 +450,16 @@ function employeePath(formData: FormData, extra: Record<string, string>) {
   }
   const text = params.toString();
   return text ? `/admin/employees?${text}` : "/admin/employees";
+}
+
+export async function dismissRosterCorrectionsAction(formData: FormData) {
+  try {
+    await dismissRosterCorrections();
+  } catch (error) {
+    redirect(employeePath(formData, { error: message(error) }));
+  }
+  refreshAll();
+  redirect(employeePath(formData, { saved: "dismissed" }));
 }
 
 export async function addEmployeeAction(formData: FormData) {

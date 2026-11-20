@@ -1,6 +1,6 @@
 import { prisma } from "../src/lib/db";
 import { importBundledDevelopmentSheet } from "../src/lib/development";
-import { linkEmployees, normalizeStoredPersonNames } from "../src/lib/employees";
+import { linkEmployees, normalizeStoredPersonNames, refreshRosterPositions } from "../src/lib/employees";
 import { seedCatalog, seedDatabase, seedSampleContent } from "../src/lib/seed-run";
 
 async function main() {
@@ -26,6 +26,11 @@ async function main() {
     console.log(`Person names titled: employees ${names.employees}, trainees ${names.trainees}, trainers ${names.trainers}.`);
     for (const example of names.examples.slice(0, 10)) {
       console.log(`Name case ${example.kind}: ${example.from} -> ${example.to}`);
+    }
+    const positions = await refreshRosterPositions();
+    console.log(`Roster positions copied: employees ${positions.employees}, trainees ${positions.trainees}, trainers ${positions.trainers}.`);
+    for (const example of positions.examples) {
+      console.log(`Position ${example.kind} ${example.name}: ${example.from} -> ${example.to}`);
     }
   }
   const linked = await linkEmployees();

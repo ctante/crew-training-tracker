@@ -13,7 +13,7 @@ import {
   weekLabel,
   type DevelopmentStoreWeek,
 } from "./development-hours";
-import { linkEmployees, visibleLinkedWhere } from "./employees";
+import { linkEmployees, linkedPosition, visibleLinkedWhere } from "./employees";
 import { addDays, normalizeStoreNumber, todayIso } from "./format";
 
 export {
@@ -244,12 +244,13 @@ export async function getDevelopment(filters: { week?: string; store?: string; p
     weekStart = preferredWeek(current, worked.map((week) => week.weekStart));
   }
   const stores = await scopedStores(who, filters.store);
-  const position = filters.position && filters.position !== "all" ? canonicalTrainerPosition(filters.position) : "";
+  const position = filters.position && filters.position !== "all" ? filters.position : "";
   const staff = await prisma.staff.findMany({
     where: {
       storeId: { in: stores.map((store) => store.id) },
       ...visibleLinkedWhere(Boolean(filters.showInactive)),
     },
+    include: { employee: { select: { position: true } } },
   });
   const weeks = await prisma.developmentWeek.findMany({
     where: { weekStart, storeId: { in: stores.map((store) => store.id) } },
@@ -261,11 +262,15 @@ export async function getDevelopment(filters: { week?: string; store?: string; p
     const entryByStaff = new Map(week?.entries.map((entry) => [entry.staffId, entry]) ?? []);
     const people = staff
       .filter((person) => person.storeId === store.id)
-      .filter((person) => !position || canonicalTrainerPosition(person.position) === position)
+      .filter((person) => {
+        if (!position) return true;
+        const shown = linkedPosition(person);
+        return shown === position || canonicalTrainerPosition(shown) === position;
+      })
       .map((person) => ({
         id: person.id,
         name: person.name,
-        position: canonicalTrainerPosition(person.position) || person.position,
+        position: linkedPosition(person),
         active: person.active,
         hours: entryByStaff.get(person.id)?.hours ?? "",
         trainingNeeded: entryByStaff.get(person.id)?.trainingNeeded ?? "",
@@ -294,6 +299,9 @@ export async function getDevelopment(filters: { week?: string; store?: string; p
     tasks: sortTaskLabels((await prisma.developmentTask.findMany()).map((task) => task.label)),
     canChooseStores: choices.length > 1,
     stores: choices.map((store) => store.number),
+    positionOptions: [...new Set(staff.map((person) => linkedPosition(person)).filter(Boolean))].sort((a, b) =>
+      a.localeCompare(b, "en", { sensitivity: "base" }),
+    ),
     storeChoices: choices.map((store) => ({ id: store.id, number: store.number })),
     sections,
   };

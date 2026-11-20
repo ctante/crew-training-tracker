@@ -28,13 +28,19 @@ export default async function RosterPage({
   const canManage = allows(who, "edit_development") && allows(who, "roster_import");
   const storeChoices = roster.stores.filter((store) => seesStoreId(who, store.id));
   const storeFilter = one(params.store);
-  const positionFilter = DEVELOPMENT_POSITIONS.some((choice) => choice.value === one(params.position)) ? one(params.position) : "";
+  const positionChoicesOnRoster = [...new Set(storeChoices.flatMap((store) => [...store.trainers, ...store.removed].map((person) => person.position)).filter(Boolean))].sort((a, b) =>
+    a.localeCompare(b, "en", { sensitivity: "base" }),
+  );
+  const requestedPosition = one(params.position);
+  const positionFilter = positionChoicesOnRoster.includes(requestedPosition) || DEVELOPMENT_POSITIONS.some((choice) => choice.value === requestedPosition) ? requestedPosition : "";
+  const matchesPosition = (position: string) =>
+    !positionFilter || position === positionFilter || canonicalTrainerPosition(position) === positionFilter;
   const listed = storeChoices
     .filter((store) => !storeFilter || storeFilter === "all" || store.number === storeFilter)
     .map((store) => ({
       ...store,
-      trainers: store.trainers.filter((person) => !positionFilter || canonicalTrainerPosition(person.position) === positionFilter),
-      removed: store.removed.filter((person) => !positionFilter || canonicalTrainerPosition(person.position) === positionFilter),
+      trainers: store.trainers.filter((person) => matchesPosition(person.position)),
+      removed: store.removed.filter((person) => matchesPosition(person.position)),
     }))
     .filter((store) => !positionFilter || store.trainers.length > 0 || store.removed.length > 0);
 
@@ -109,9 +115,9 @@ export default async function RosterPage({
           <span className="mt-0.5 block text-xs font-normal text-ink/50">Posición</span>
           <select className={`${fieldClass} mt-1`} name="position" defaultValue={positionFilter || "all"}>
             <option value="all">All · Todos</option>
-            {DEVELOPMENT_POSITIONS.map((choice) => (
-              <option key={choice.value} value={choice.value}>
-                {choice.label} · {choice.es}
+            {positionChoicesOnRoster.map((position) => (
+              <option key={position} value={position}>
+                {position}
               </option>
             ))}
           </select>
