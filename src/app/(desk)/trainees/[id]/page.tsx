@@ -6,6 +6,8 @@ import { Flag, Flash, PageHeader, ProgressBar, fieldClass, ghostButton, primaryB
 import { SECTION_TITLES, languageName } from "@/lib/constants";
 import { access, allows } from "@/lib/access";
 import { getTrainee } from "@/lib/data";
+import { positionChoices } from "@/lib/employees";
+import { PositionSelect } from "@/components/position-select";
 import { formatMinutes, one, storeLabel, todayIso } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -27,7 +29,7 @@ export default async function TraineePage({
   const query = await searchParams;
   const who = await access();
   const showInactive = who.role === "admin" && one(query.inactive) === "1";
-  const trainee = await getTrainee(id, who, showInactive);
+  const [trainee, positions] = await Promise.all([getTrainee(id, who, showInactive), positionChoices()]);
   if (!trainee) notFound();
   const canEdit = allows(who, "trainees_edit");
   const canDeactivate = allows(who, "trainees_deactivate");
@@ -169,6 +171,10 @@ export default async function TraineePage({
                     </option>
                   ))}
                 </select>
+              </label>
+              <label className="text-sm font-semibold">
+                Position
+                <PositionSelect name="position" positions={positions} defaultValue={trainee.position} required />
               </label>
               <label className="text-sm font-semibold">
                 Start date

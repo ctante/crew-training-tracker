@@ -9,7 +9,7 @@ import {
   updateDevelopmentPersonAction,
 } from "@/app/actions";
 import { fieldClass, ghostButton, primaryButton } from "@/components/ui";
-import { DEVELOPMENT_POSITIONS } from "@/lib/constants";
+import { MAPPED_POSITIONS } from "@/lib/constants";
 import { DEVELOPMENT_ACTIVITY, HOUR_CHOICES, developmentHours, formatHourTotal, type DevelopmentStoreWeek } from "@/lib/development-hours";
 
 type StoreChoice = { id: string; number: string };
@@ -23,6 +23,7 @@ export function DevelopmentBoard({
   store,
   position,
   storeChoices,
+  positions = [...MAPPED_POSITIONS],
   showEveryone,
   everyoneHref,
   workHref,
@@ -35,6 +36,7 @@ export function DevelopmentBoard({
   store: string;
   position: string;
   storeChoices: StoreChoice[];
+  positions?: string[];
   showEveryone: boolean;
   everyoneHref: string;
   workHref: string;
@@ -275,13 +277,13 @@ export function DevelopmentBoard({
                                     className={`${fieldClass} print:hidden`}
                                     name="position"
                                     form={editForm}
-                                    defaultValue={DEVELOPMENT_POSITIONS.some((choice) => choice.value === person.position) ? person.position : "Crew Trainer"}
+                                    defaultValue={positions.includes(person.position) ? person.position : positions[0] ?? "Crew Person"}
                                     aria-label={`Position for ${person.name}`}
                                     required
                                   >
-                                    {DEVELOPMENT_POSITIONS.map((choice) => (
-                                      <option key={choice.value} value={choice.value}>
-                                        {choice.label}
+                                    {[...new Set([person.position, ...positions].filter(Boolean))].map((choice) => (
+                                      <option key={choice} value={choice}>
+                                        {choice}
                                       </option>
                                     ))}
                                   </select>

@@ -4,9 +4,10 @@ import { AdminNav } from "@/components/admin-nav";
 import { CollapsibleSections } from "@/components/collapsible-sections";
 import { ConfirmSubmit } from "@/components/confirm-submit";
 import { EmployeeNameField } from "@/components/employee-name-field";
+import { PositionSelect } from "@/components/position-select";
 import { Flash, PageHeader, fieldClass, ghostButton, primaryButton } from "@/components/ui";
 import { access } from "@/lib/access";
-import { listEmployees } from "@/lib/employees";
+import { listEmployees, positionChoices, recentRosterNotes } from "@/lib/employees";
 import { listStoreChoices } from "@/lib/data";
 import { one, storeLabel } from "@/lib/format";
 
@@ -22,12 +23,17 @@ export default async function EmployeesPage({
   const who = await access();
   if (who.role !== "admin") redirect("/");
   const params = await searchParams;
-  const [people, stores] = await Promise.all([listEmployees(), listStoreChoices()]);
+  const [people, stores, positions, notes] = await Promise.all([
+    listEmployees(),
+    listStoreChoices(),
+    positionChoices(),
+    recentRosterNotes(),
+  ]);
   const storeFilter = one(params.store);
   const positionFilter = one(params.position);
   const query = one(params.q).trim().toLowerCase();
   const showInactive = one(params.inactive) === "1";
-  const positions = [...new Set(people.map((person) => person.position).filter(Boolean))].sort((a, b) =>
+  const filterPositions = [...new Set(people.map((person) => person.position).filter(Boolean))].sort((a, b) =>
     a.localeCompare(b, "en", { sensitivity: "base" }),
   );
   const shown = people.filter((person) => {
@@ -78,7 +84,7 @@ export default async function EmployeesPage({
           Position
           <select className={`${fieldClass} mt-1`} name="position" defaultValue={positionFilter || "all"}>
             <option value="all">All</option>
-            {positions.map((position) => (
+            {filterPositions.map((position) => (
               <option key={position} value={position}>
                 {position}
               </option>
@@ -117,7 +123,7 @@ export default async function EmployeesPage({
           <EmployeeNameField storeField="storeId" />
           <label className="text-sm font-semibold">
             Position
-            <input className={`${fieldClass} mt-1`} name="position" />
+            <PositionSelect name="position" positions={positions} required />
           </label>
           <button className={primaryButton} type="submit">
             Save Employee
@@ -138,6 +144,19 @@ export default async function EmployeesPage({
           </button>
         </form>
       </details>
+      {notes.length ? (
+        <section className="mb-6 rounded-3xl border border-line bg-card p-4">
+          <h2 className="font-display text-2xl">Recent Roster Corrections</h2>
+          <ul className="mt-2 space-y-1 text-sm">
+            {notes.map((note) => (
+              <li key={note.id}>
+                {note.storeNumber}: {note.kind} {note.fromName}
+                {note.note.startsWith("ambiguous") ? ` skipped, more than one match (${note.note.replace("ambiguous: ", "")})` : ` → ${note.toName}${note.position ? `, ${note.position}` : ""}`}
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
       {groups.length === 0 ? (
         <p className="text-sm text-ink/70">No employees match.</p>
       ) : (
@@ -173,7 +192,7 @@ export default async function EmployeesPage({
                         {person.active ? "" : <span className="text-xs font-semibold text-ink/50">Inactive</span>}
                       </td>
                       <td className="py-2 pr-3 align-top">
-                        <input className={fieldClass} name="position" form={`employee-${person.id}`} defaultValue={person.position} />
+                        <PositionSelect name="position" positions={positions} defaultValue={person.position} form={`employee-${person.id}`} required />
                       </td>
                       <td className="py-2 align-top">
                         <div className="flex flex-wrap gap-2">

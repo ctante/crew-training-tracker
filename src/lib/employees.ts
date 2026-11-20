@@ -1,10 +1,109 @@
 import { access, storeIdWhere } from "./access";
+import { MAPPED_POSITIONS } from "./constants";
 import { parseCsv } from "./csv";
 import { prisma } from "./db";
 import { normalizeStoreNumber } from "./format";
 
 export function employeeNameKey(name: string) {
   return name.trim().toLowerCase().replace(/[’‘]/g, "'").replace(/\s+/g, " ");
+}
+
+const CREW_TITLES = new Set(["PRIMARY MAIN PERSON", "BACKUP MAINTENANCE PERSON"]);
+
+export function mapJobTitle(raw: string) {
+  const cleaned = raw.trim().replace(/\s+/g, " ");
+  if (!cleaned) return "";
+  const key = cleaned.toUpperCase().replace(/\./g, "").replace(/\s+/g, " ").trim();
+  if (CREW_TITLES.has(key)) return "Crew Person";
+  return cleaned.toLowerCase().replace(/(^|[^a-z])([a-z])/g, (_, lead: string, letter: string) => lead + letter.toUpperCase());
+}
+
+export function parseRosterCsv(text: string): SnapshotPerson[] {
+  const table = parseCsv(text);
+  if (table.length < 2) throw new Error("The roster file needs a header and at least one person.");
+  const headers = table[0].map((header) => header.trim().toLowerCase());
+  const index = (names: string[]) => names.map((name) => headers.indexOf(name)).find((item) => item >= 0) ?? -1;
+  const storeCol = index(["store", "restaurant", "store number"]);
+  const nameCol = index(["name", "employee"]);
+  const jobCol = index(["job title", "position"]);
+  if (storeCol < 0 || nameCol < 0 || jobCol < 0) {
+    throw new Error("The header needs Store, Name, and Job Title.");
+  }
+  return table.slice(1).flatMap((row) => {
+    const store = (row[storeCol] ?? "").trim();
+    const name = (row[nameCol] ?? "").trim();
+    if (!store || !name) return [];
+    return [{ store, name, position: mapJobTitle(row[jobCol] ?? "") }];
+  });
+}
+
+export type NameShape = { loose: string; tokens: string[]; significant: string[] };
+
+export function nameShape(name: string): NameShape {
+  const loose = name
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .toLowerCase()
+    .replace(/[’‘]/g, "'")
+    .replace(/[^a-z'\s-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const tokens = loose.split(" ").filter(Boolean);
+  return { loose, tokens, significant: tokens.filter((token) => token.length > 1) };
+}
+
+export function namesMatch(leftName: string, rightName: string) {
+  const left = nameShape(leftName);
+  const right = nameShape(rightName);
+  if (!left.loose || !right.loose) return false;
+  if (left.loose === right.loose) return true;
+  const shorter = left.significant.length <= right.significant.length ? left.significant : right.significant;
+  const longer = shorter === left.significant ? right.significant : left.significant;
+  if (shorter.length >= 2 && shorter.every((token) => longer.includes(token))) return true;
+  const leftLast = left.significant.at(-1) ?? "";
+  const rightLast = right.significant.at(-1) ?? "";
+  if (leftLast && leftLast === rightLast) {
+    const leftFirst = left.significant[0] ?? "";
+    const rightFirst = right.significant[0] ?? "";
+    const min = Math.min(leftFirst.length, rightFirst.length);
+    if (min >= 3 && (leftFirst.startsWith(rightFirst) || rightFirst.startsWith(leftFirst))) return true;
+    if (left.tokens[0]?.length === 1 && rightFirst.startsWith(left.tokens[0])) return true;
+    if (right.tokens[0]?.length === 1 && leftFirst.startsWith(right.tokens[0])) return true;
+  }
+  if (left.significant.length === 1 && right.significant.length >= 1) {
+    const short = left.significant[0];
+    return short.length >= 3 && right.significant[0].startsWith(short);
+  }
+  if (right.significant.length === 1 && left.significant.length >= 1) {
+    const short = right.significant[0];
+    return short.length >= 3 && left.significant[0].startsWith(short);
+  }
+  return false;
+}
+
+export function uniqueNameMatches<T extends { name: string }, U extends { name: string }>(left: T[], right: U[]) {
+  const hits = left.map((item) => ({ item, matches: right.filter((other) => namesMatch(item.name, other.name)) }));
+  const rightCount = new Map<U, number>();
+  for (const row of hits) {
+    for (const match of row.matches) rightCount.set(match, (rightCount.get(match) ?? 0) + 1);
+  }
+  const pairs: { left: T; right: U }[] = [];
+  const ambiguous: { name: string; candidates: string[] }[] = [];
+  for (const row of hits) {
+    if (row.matches.length === 1 && rightCount.get(row.matches[0]) === 1) {
+      pairs.push({ left: row.item, right: row.matches[0] });
+    } else if (row.matches.length > 0) {
+      ambiguous.push({ name: row.item.name, candidates: [...new Set(row.matches.map((match) => match.name))] });
+    }
+  }
+  return { pairs, ambiguous };
+}
+
+export function rosterCsvBody(text: string, contentType: string) {
+  const type = contentType.toLowerCase();
+  if (type.includes("csv")) return true;
+  const first = text.replace(/^\uFEFF/, "").trimStart().split(/\r?\n/, 1)[0]?.toLowerCase() ?? "";
+  return first.startsWith("store,") && first.includes("name") && (first.includes("job title") || first.includes("position"));
 }
 
 export function visibleLinkedWhere(showInactive: boolean) {
@@ -28,6 +127,10 @@ export async function syncEmployeeSnapshot(rows: SnapshotPerson[]) {
   let updated = 0;
   let deactivated = 0;
   let reactivated = 0;
+  let corrected = 0;
+  const corrections: { store: string; kind: string; fromName: string; toName: string; position: string; note: string }[] = [];
+  const ambiguous: { store: string; kind: string; name: string; candidates: string[] }[] = [];
+  const pending: { storeId: string; storeNumber: string; name: string; position: string; externalId: string | null }[] = [];
   const seenByStore = new Map<string, Set<string>>();
   const cache = new Map<string, Awaited<ReturnType<typeof prisma.employee.findMany>>>();
 
@@ -37,7 +140,7 @@ export async function syncEmployeeSnapshot(rows: SnapshotPerson[]) {
     const name = row.name.trim().replace(/\s+/g, " ");
     if (!store || name.length < 2) continue;
     const externalId = row.employeeId?.trim() || null;
-    const position = (row.position ?? "").trim().slice(0, 80);
+    const position = mapJobTitle(row.position ?? "").slice(0, 80);
     const people = cache.get(store.id) ?? (await prisma.employee.findMany({ where: { storeId: store.id } }));
     cache.set(store.id, people);
     const match = externalId
@@ -56,30 +159,77 @@ export async function syncEmployeeSnapshot(rows: SnapshotPerson[]) {
           lastSyncedAt: now,
         },
       });
-      if (match.active) updated += 1;
+      const renamed = employeeNameKey(match.name) !== employeeNameKey(name);
+      if (renamed) {
+        corrected += 1;
+        corrections.push({ store: store.number, kind: "employee", fromName: match.name, toName: name.slice(0, 80), position, note: "" });
+      } else if (match.active) updated += 1;
       else reactivated += 1;
       const seen = seenByStore.get(store.id) ?? new Set<string>();
       seen.add(match.id);
       seenByStore.set(store.id, seen);
-      Object.assign(match, { name: name.slice(0, 80), externalId: externalId ?? match.externalId, active: true });
+      Object.assign(match, { name: name.slice(0, 80), externalId: externalId ?? match.externalId, active: true, source: "qsrsoft" });
     } else {
+      pending.push({ storeId: store.id, storeNumber: store.number, name: name.slice(0, 80), position, externalId });
+    }
+  }
+
+  const pendingByStore = new Map<string, typeof pending>();
+  for (const row of pending) {
+    pendingByStore.set(row.storeId, [...(pendingByStore.get(row.storeId) ?? []), row]);
+  }
+  for (const [storeId, rowsForStore] of pendingByStore) {
+    const people = cache.get(storeId) ?? [];
+    const seen = seenByStore.get(storeId) ?? new Set<string>();
+    const manuals = people.filter((person) => person.source === "manual" && !seen.has(person.id));
+    const paired = uniqueNameMatches(rowsForStore, manuals);
+    const usedRows = new Set(paired.pairs.map((pair) => pair.left));
+    for (const pair of paired.pairs) {
+      await prisma.employee.update({
+        where: { id: pair.right.id },
+        data: {
+          name: pair.left.name,
+          position: pair.left.position,
+          active: true,
+          externalId: pair.left.externalId ?? pair.right.externalId,
+          source: "qsrsoft",
+          lastSyncedAt: now,
+        },
+      });
+      corrected += 1;
+      corrections.push({
+        store: pair.left.storeNumber,
+        kind: "employee",
+        fromName: pair.right.name,
+        toName: pair.left.name,
+        position: pair.left.position,
+        note: "",
+      });
+      seen.add(pair.right.id);
+      Object.assign(pair.right, { name: pair.left.name, active: true, source: "qsrsoft" });
+    }
+    for (const skip of paired.ambiguous) {
+      ambiguous.push({ store: rowsForStore[0]?.storeNumber ?? "", kind: "employee", name: skip.name, candidates: skip.candidates });
+    }
+    for (const row of rowsForStore) {
+      if (usedRows.has(row)) continue;
       const created = await prisma.employee.create({
         data: {
-          storeId: store.id,
-          name: name.slice(0, 80),
-          position,
+          storeId,
+          name: row.name,
+          position: row.position,
           active: true,
-          externalId,
+          externalId: row.externalId,
           source: "qsrsoft",
           lastSyncedAt: now,
         },
       });
       added += 1;
       people.push(created);
-      const seen = seenByStore.get(store.id) ?? new Set<string>();
       seen.add(created.id);
-      seenByStore.set(store.id, seen);
     }
+    seenByStore.set(storeId, seen);
+    cache.set(storeId, people);
   }
 
   for (const [storeId, seen] of seenByStore) {
@@ -89,8 +239,78 @@ export async function syncEmployeeSnapshot(rows: SnapshotPerson[]) {
     });
     deactivated += retired.count;
   }
+  const linked = await correctRosterNames([...seenByStore.keys()]);
+  corrected += linked.corrected;
+  corrections.push(...linked.corrections);
+  ambiguous.push(...linked.ambiguous);
   await linkEmployees();
-  return { added, updated, deactivated, reactivated };
+  if (corrections.length || ambiguous.length) {
+    await prisma.rosterCorrection.createMany({
+      data: [
+        ...corrections.map((row) => ({
+          storeNumber: row.store,
+          kind: row.kind,
+          fromName: row.fromName,
+          toName: row.toName,
+          position: row.position,
+          note: "corrected",
+        })),
+        ...ambiguous.map((row) => ({
+          storeNumber: row.store,
+          kind: row.kind,
+          fromName: row.name,
+          toName: "",
+          position: "",
+          note: `ambiguous: ${row.candidates.join(", ")}`,
+        })),
+      ],
+    });
+  }
+  return { added, updated, deactivated, reactivated, corrected, corrections, ambiguous };
+}
+
+async function correctRosterNames(storeIds: string[]) {
+  let corrected = 0;
+  const corrections: { store: string; kind: string; fromName: string; toName: string; position: string; note: string }[] = [];
+  const ambiguous: { store: string; kind: string; name: string; candidates: string[] }[] = [];
+  if (!storeIds.length) return { corrected, corrections, ambiguous };
+  const stores = await prisma.store.findMany({
+    where: { id: { in: storeIds } },
+    include: {
+      employees: { where: { active: true } },
+      trainees: { where: { employeeId: null } },
+      staff: { where: { OR: [{ employeeId: null }, { rosterSource: "manual" }] } },
+    },
+  });
+  for (const store of stores) {
+    const traineePairs = uniqueNameMatches(store.trainees, store.employees);
+    for (const pair of traineePairs.pairs) {
+      await prisma.trainee.update({
+        where: { id: pair.left.id },
+        data: { employeeId: pair.right.id, name: pair.right.name, position: pair.right.position },
+      });
+      corrected += 1;
+      corrections.push({ store: store.number, kind: "trainee", fromName: pair.left.name, toName: pair.right.name, position: pair.right.position, note: "" });
+    }
+    for (const skip of traineePairs.ambiguous) {
+      ambiguous.push({ store: store.number, kind: "trainee", name: skip.name, candidates: skip.candidates });
+    }
+    const staffPairs = uniqueNameMatches(store.staff, store.employees);
+    for (const pair of staffPairs.pairs) {
+      const same = pair.left.employeeId === pair.right.id && pair.left.name === pair.right.name && pair.left.position === pair.right.position;
+      if (same) continue;
+      await prisma.staff.update({
+        where: { id: pair.left.id },
+        data: { employeeId: pair.right.id, name: pair.right.name, position: pair.right.position },
+      });
+      corrected += 1;
+      corrections.push({ store: store.number, kind: "trainer", fromName: pair.left.name, toName: pair.right.name, position: pair.right.position, note: "" });
+    }
+    for (const skip of staffPairs.ambiguous) {
+      ambiguous.push({ store: store.number, kind: "trainer", name: skip.name, candidates: skip.candidates });
+    }
+  }
+  return { corrected, corrections, ambiguous };
 }
 
 export async function linkEmployees() {
@@ -175,14 +395,14 @@ export async function importEmployeeCsv(csv: string) {
   const index = (names: string[]) => names.map((name) => headers.indexOf(name)).find((item) => item >= 0) ?? -1;
   const storeCol = index(["store", "restaurant", "store number"]);
   const nameCol = index(["name", "employee"]);
-  const positionCol = index(["position"]);
+  const positionCol = index(["position", "job title"]);
   const idCol = index(["employee_id", "employee id", "external id"]);
   const activeCol = index(["active"]);
   if (storeCol < 0 || nameCol < 0) throw new Error("The header needs store and name columns.");
   const snapshot = table.slice(1).map((row) => ({
     store: row[storeCol] ?? "",
     name: row[nameCol] ?? "",
-    position: positionCol >= 0 ? row[positionCol] ?? "" : "",
+    position: mapJobTitle(positionCol >= 0 ? row[positionCol] ?? "" : ""),
     employeeId: idCol >= 0 ? row[idCol] ?? "" : "",
     active: activeCol >= 0 ? activeFlag(row[activeCol]) : true,
   }));
@@ -277,6 +497,17 @@ export async function setEmployeeActive(id: string, active: boolean) {
   const who = await access();
   if (who.role !== "admin") throw new Error("Only an admin can change the employee roster.");
   await prisma.employee.update({ where: { id }, data: { active } });
+}
+
+export async function positionChoices() {
+  const rows = await prisma.employee.findMany({ distinct: ["position"], select: { position: true }, orderBy: { position: "asc" } });
+  return [...new Set([...MAPPED_POSITIONS, ...rows.map((row) => row.position.trim()).filter(Boolean)])].sort((a, b) =>
+    a.localeCompare(b, "en", { sensitivity: "base" }),
+  );
+}
+
+export async function recentRosterNotes() {
+  return prisma.rosterCorrection.findMany({ orderBy: { createdAt: "desc" }, take: 40 });
 }
 
 export async function listEmployees() {

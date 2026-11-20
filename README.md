@@ -96,7 +96,16 @@ The all-restaurant export adds store, trainee, language, position, start date, s
 
 `POST /api/roster/sync` replaces the people at the restaurants included in the body. Authorize it with `Authorization: Bearer <SYNC_TOKEN>`. The token is not written to logs. A missing token returns 503. A wrong token returns 401.
 
-Send a JSON array. Each object is one employee:
+Send either a JSON array or the MyQSRSoft CSV. For the CSV, post the file as the body with `Content-Type: text/csv` and this header:
+
+```csv
+Store,Name,Job Title
+05207,Alex Rivera,PRIMARY MAIN. PERSON
+```
+
+`PRIMARY MAIN. PERSON` and `BACKUP MAINTENANCE PERSON` are stored as `Crew Person`. Other job titles are stored in Title Case, such as `Cert. Swing Mgr.` The file is the active roster. Anyone at those restaurants who is missing from it is marked inactive. There is no employee id in this file, so people match on the restaurant plus the name.
+
+Or send a JSON array. Each object is one employee:
 
 ```json
 [
@@ -107,10 +116,12 @@ Send a JSON array. Each object is one employee:
 
 `store` is the restaurant number. `name` is required. `employeeId` and `position` are optional. A person with `employeeId` matches that id at the restaurant, or a row at that restaurant with the same name and no id yet. Otherwise the match is the restaurant plus the name, ignoring case and extra spaces.
 
+A confident name match in the same restaurant links a manual employee, an unlinked trainee, or an unlinked trainer and copies the roster name and position. `corrected` is how many of those matches were applied. Ambiguous names are left unchanged.
+
 People already there are updated. A person who was inactive and appears again is reactivated. A new name is added. Anyone at those restaurants who is missing from the array is marked inactive and is not deleted. Restaurants that are absent from the array are left alone. Unknown restaurant numbers are ignored.
 
 ```json
-{ "ok": true, "added": 1, "updated": 1, "deactivated": 0, "reactivated": 0 }
+{ "ok": true, "added": 1, "updated": 1, "deactivated": 0, "reactivated": 0, "corrected": 0 }
 ```
 
 The beta database starts with an empty Employee table. Existing trainees and trainers are linked only when one employee at that restaurant has the same normalized name. If two employees share a name, nobody is linked from that name, and unlinked people stay visible.

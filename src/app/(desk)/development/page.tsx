@@ -8,6 +8,7 @@ import { Flash, PageHeader, fieldClass, ghostButton, primaryButton } from "@/com
 import { TRAINER_POSITION_ORDER } from "@/lib/constants";
 import { access } from "@/lib/access";
 import { getDevelopment } from "@/lib/development";
+import { positionChoices } from "@/lib/employees";
 import { one, withParams } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -23,6 +24,7 @@ export default async function DevelopmentPage({
   const requestedWeek = one(params.week);
   const who = await access();
   const showInactive = who.role === "admin" && one(params.inactive) === "1";
+  const positions = await positionChoices();
   const data = await getDevelopment({
     week: requestedWeek,
     store: one(params.store),
@@ -139,6 +141,7 @@ export default async function DevelopmentPage({
         store={data.store}
         position={data.position}
         storeChoices={data.storeChoices}
+        positions={positions}
         showEveryone={showEveryone}
         everyoneHref={withParams("/development", query, { people: "all" })}
         workHref={withParams("/development", query, { people: "" })}

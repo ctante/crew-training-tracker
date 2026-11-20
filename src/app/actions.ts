@@ -86,6 +86,7 @@ export async function updateTraineeAction(formData: FormData) {
       startDate: String(formData.get("startDate") || ""),
       status: String(formData.get("status") || "ACTIVE"),
       path: String(formData.get("path") || ""),
+      ...(formData.has("position") ? { position: String(formData.get("position") || "") } : {}),
     });
   } catch (error) {
     redirect(`/trainees/${id}?error=${encodeURIComponent(message(error))}`);

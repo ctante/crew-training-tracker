@@ -64,6 +64,17 @@ export const DEVELOPMENT_POSITIONS = [
   { label: "Crew Trainer", es: "Entrenador de equipo", value: "Crew Trainer" },
 ] as const;
 
+export const MAPPED_POSITIONS = [
+  "Area Manager",
+  "Assistant Manager",
+  "Cert. Swing Mgr.",
+  "Crew Person",
+  "Crew Trainer",
+  "Department Manager",
+  "General Manager",
+  "Shift Manager",
+] as const;
+
 export const TRAINER_MANAGER_LABEL = {
   en: "Trainer / Manager",
   es: "Entrenador / Gerente",
