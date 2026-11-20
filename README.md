@@ -28,7 +28,7 @@ Ongoing development uses the beta site: https://crew-training-tracker.vercel.app
 
 New work opens a pull request into `beta`. When Chris says to promote, merge `beta` into `main`. That updates the live site. Do not open routine work against `main`.
 
-The weekly roster sync must post to https://mcd-its.vercel.app/api/sync/roster. The old address is the beta site now, so a sync pointed there would change the test database instead of the live one.
+The weekly Google roster sync is retired. People are added on the Development page. `POST /api/sync/roster` is still there and still checks its token, but it does not change the roster.
 
 ## Users
 
@@ -45,7 +45,7 @@ A person only sees the restaurants on the account. Reports, the board, the sched
 
 ## Development
 
-Development is the weekly sheet for managers and crew trainers. Weeks run Monday through Sunday and are labeled like Week of 11/23-11/29. The first view shows people who have hours, training needed, or comments. Edit lists the whole roster. Hours are a dropdown from 0.5 to 10. Training Needed is a dropdown an admin maintains under Admin, then Training needed. Comments stay free text. Copy last week carries the previous week forward. Download CSV uses Employee, Restaurant, Position, Training Hours Needed, Training Needed, Comments.
+Development is the weekly sheet for managers and crew trainers, and it is now the roster. Weeks run Monday through Sunday and are labeled like Week of 11/23-11/29. The first view shows people who have hours, training needed, or comments. Edit lists the whole roster. Someone with Edit development and Manage roster can add a person, change the name, restaurant, or position, or remove them. Removing keeps past weeks and training history. The same name cannot be added twice at one restaurant. Hours are a dropdown from 0.5 to 10. Training Needed is a dropdown an admin maintains under Admin, then Training needed. Comments stay free text. Copy last week carries the previous week forward. Download CSV uses Employee, Restaurant, Position, Training Hours Needed, Training Needed, Comments.
 
 Managers and supervisors can view it. Admins can edit it, and can grant Edit development to someone else. An admin can also import a CSV of those columns into the week on screen. That import is the way to load a sheet onto the live site later. A beta deploy loads the bundled sheet by itself. A production deploy does not.
 
@@ -71,15 +71,11 @@ In the sheets, the Trainer column is a dropdown fed by the Development Report ro
 
   Sheet abbreviations such as `Gen Mgr`, `Asst Mgr`, `Shift Mgr`, and `Area Mgr` sort into those same groups. Anything else sorts after them.
 
-- Upload a roster at `/admin/roster` with columns `Name`, `Store`, `Position`, `Qualified` (`Yes` or `No`). `Store` can be `05207` or `5207`. If the Qualified column is missing, every row is qualified.
-- The file is the roster for the restaurants it names. People previously imported from a Development Report at those restaurants, and missing from the new file, are marked not qualified. Sample trainers are kept unless a row matches their name.
+- Add a person on the Development page. The positions are Gen Mgr, Asst Mgr, Shift Mgr, Area Mgr, and Crew Trainer. Each one is a qualified trainer at that restaurant.
+- Removing a person hides them from the roster and from trainer dropdowns. Their past development weeks and assigned sessions stay.
 - Orientation remains available on the first module as a label.
 
-### Google Sheets hook
-
-CSV upload and a future sheet sync both implement `DevelopmentReportSource` in `src/lib/roster/source.ts`. Neither implementation writes to the database. `syncDevelopmentReport` in `src/lib/data.ts` is the writer.
-
-`src/lib/roster/google-sheets.ts` is the plug-in point. It currently reads a published CSV from `DEVELOPMENT_REPORT_CSV_URL`. Replace `pull()` there with a Sheets API call and keep the same return shape (`name`, `storeNumber`, `position`, `qualified`). The Admin roster page has a Sync button that calls this adapter.
+The old weekly sheet sync is not used. `POST /api/sync/roster` answers without writing. Admin, then Trainer roster, only lists the people already on the roster.
 
 ## Sample data
 

@@ -6,7 +6,7 @@ import { spanishTextUpdate } from "../src/lib/translate";
 import { getReports } from "../src/lib/reports";
 import { prisma } from "../src/lib/db";
 import { daysBetween, formatLongDate, parseLooseDate, selectReportStores, sessionWindow } from "../src/lib/format";
-import { convertHours, developmentHours, formatHourTotal, importDevelopmentRows, mondayOf, parseWeekLabel, weekLabel } from "../src/lib/development";
+import { addDevelopmentPerson, convertHours, deactivateDevelopmentPerson, developmentHours, formatHourTotal, importDevelopmentRows, mondayOf, parseWeekLabel, restoreDevelopmentPerson, updateDevelopmentPerson, weekLabel } from "../src/lib/development";
 import { CODE_ROLE_DEFAULTS, effectivePermissions, overridesFor, roleDefaults } from "../src/lib/permissions";
 import { saveAppUser } from "../src/lib/users";
 import { loadModuleSeeds } from "../src/lib/module-csv";
@@ -841,6 +841,37 @@ Zed Unqualified,05207,Shift Manager,No
     await prisma.developmentEntry.deleteMany({ where: { staffId: developmentPerson.id } });
     await prisma.developmentWeek.deleteMany({ where: { storeId: developmentStore.id, weekStart: "2026-11-23" } });
     await prisma.staff.delete({ where: { id: developmentPerson.id } });
+  }
+
+  const rosterPerson = await addDevelopmentPerson({
+    storeId: developmentStore.id,
+    name: "Roster Added",
+    position: "Gen Mgr",
+  });
+  try {
+    assert.equal(rosterPerson.position, "General Manager");
+    assert.equal(rosterPerson.isGm, true);
+    assert.equal(rosterPerson.isTrainer, true);
+    assert.equal(rosterPerson.qualified, true);
+    await assert.rejects(() =>
+      addDevelopmentPerson({ storeId: developmentStore.id, name: "  roster   added ", position: "Crew Trainer" }),
+    );
+    const otherStore = await prisma.store.findFirst({ where: { number: { not: "05207" } } });
+    assert.ok(otherStore);
+    const moved = await updateDevelopmentPerson(rosterPerson.id, {
+      storeId: otherStore.id,
+      name: "Roster Added",
+      position: "Shift Mgr",
+    });
+    assert.equal(moved.storeId, otherStore.id);
+    assert.equal(moved.isGm, false);
+    await deactivateDevelopmentPerson(rosterPerson.id);
+    assert.equal((await prisma.staff.findUniqueOrThrow({ where: { id: rosterPerson.id } })).active, false);
+    assert.equal(await prisma.staff.count({ where: { id: rosterPerson.id } }), 1);
+    await restoreDevelopmentPerson(rosterPerson.id);
+    assert.equal((await prisma.staff.findUniqueOrThrow({ where: { id: rosterPerson.id } })).active, true);
+  } finally {
+    await prisma.staff.delete({ where: { id: rosterPerson.id } });
   }
 
   const paths = await prisma.trainee.groupBy({ by: ["path"], _count: { _all: true } });

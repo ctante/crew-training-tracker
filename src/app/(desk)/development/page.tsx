@@ -33,7 +33,7 @@ export default async function DevelopmentPage({
       <PageHeader
         kicker="Development"
         title={data.label}
-        description="Monday through Sunday. This view lists people who have hours, training needed, or comments. Edit shows the whole roster. Hours are chosen from a list."
+        description="Monday through Sunday. This view lists people who have hours, training needed, or comments. Edit shows the whole roster. Add person puts a new employee on the roster."
         actions={
           <div className="flex flex-wrap gap-2 print:hidden">
             <PrintButton />
@@ -45,7 +45,15 @@ export default async function DevelopmentPage({
       />
       <Flash
         error={one(params.error)}
-        notice={one(params.saved) ? "Development week saved." : one(params.notice)}
+        notice={
+          one(params.saved) === "person"
+            ? "Person saved."
+            : one(params.saved) === "removed"
+              ? "Person removed from the roster. Past weeks stay."
+              : one(params.saved)
+                ? "Development week saved."
+                : one(params.notice)
+        }
       />
       <div className="mb-4 flex flex-wrap items-center gap-2 print:hidden">
         <Link className={ghostButton} href={withParams("/development", query, { week: data.previous })}>
@@ -107,10 +115,12 @@ export default async function DevelopmentPage({
       <DevelopmentBoard
         sections={data.sections}
         canEdit={data.canEdit}
+        canManageRoster={data.canManageRoster}
         tasks={data.tasks}
         week={data.weekStart}
         store={data.store}
         position={data.position}
+        storeChoices={data.storeChoices}
       />
       {data.canEdit ? (
         <details className="mt-6 rounded-3xl border border-line bg-card p-4 print:hidden">

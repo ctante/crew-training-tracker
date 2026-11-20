@@ -58,7 +58,7 @@ export const PERMISSIONS = [
   {
     key: "edit_development",
     label: "Edit development",
-    detail: "Change weekly hours, comments, and store notes, copy last week, and import a development sheet.",
+    detail: "Change weekly hours, comments, and store notes, copy last week, and import a development sheet. With Manage roster, add and edit people on that page.",
     group: "Development",
     adminGrant: true,
   },
@@ -79,7 +79,7 @@ export const PERMISSIONS = [
   {
     key: "roster_import",
     label: "Manage roster and import",
-    detail: "Import the trainer roster and bulk progress.",
+    detail: "Add, edit, and remove people on the development roster, and import bulk progress.",
     group: "Admin",
     adminGrant: true,
   },

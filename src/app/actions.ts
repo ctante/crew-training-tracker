@@ -8,9 +8,7 @@ import {
   createStaff,
   markModuleLinkOk,
   matchLogin,
-  previewDevelopmentReport,
   setStorePassword,
-  syncDevelopmentReport,
   addCatalogModule,
   addSecondPath,
   createTrainee,
@@ -35,18 +33,20 @@ import {
 import { access, loadRoleDefaults, requireAdmin } from "@/lib/access";
 import { effectivePermissions, isPermission, isUserRole, type Permission, type UserRole } from "@/lib/permissions";
 import {
+  addDevelopmentPerson,
   addDevelopmentTask,
   copyDevelopmentWeek,
+  deactivateDevelopmentPerson,
   importDevelopmentRows,
   parseDevelopmentCsv,
   removeDevelopmentTask,
   renameDevelopmentTask,
+  restoreDevelopmentPerson,
   saveDevelopmentWeek,
+  updateDevelopmentPerson,
 } from "@/lib/development";
 import { matchUserLogin, resetUserPermissions, saveAppUser, saveRoleDefaults, type UserDraft } from "@/lib/users";
 import { prisma } from "@/lib/db";
-import { googleSheetsDevelopmentReportSource } from "@/lib/roster/google-sheets";
-import { csvDevelopmentReportSource } from "@/lib/roster/source";
 import { SESSION_COOKIE, createSessionToken, safeNextPath, sessionCookieOptions } from "@/lib/session";
 import { seedDatabase } from "@/lib/seed-run";
 
@@ -348,33 +348,61 @@ export async function commitImportAction(csv: string, single: SingleContext | nu
   }
 }
 
-export async function previewRosterAction(csv: string) {
-  try {
-    const preview = await previewDevelopmentReport(csv);
-    return { preview };
-  } catch (error) {
-    return { error: message(error) };
-  }
+function developmentReturn(formData: FormData, extra: Record<string, string>) {
+  return developmentPath(
+    String(formData.get("week") || ""),
+    String(formData.get("returnStore") || ""),
+    String(formData.get("returnPosition") || ""),
+    extra,
+  );
 }
 
-export async function commitRosterAction(csv: string) {
+export async function addDevelopmentPersonAction(formData: FormData) {
   try {
-    const result = await syncDevelopmentReport(csvDevelopmentReportSource(csv));
-    refreshAll();
-    return { result };
+    await addDevelopmentPerson({
+      storeId: String(formData.get("storeId") || ""),
+      name: String(formData.get("name") || ""),
+      position: String(formData.get("position") || ""),
+    });
   } catch (error) {
-    return { error: message(error) };
+    redirect(developmentReturn(formData, { error: message(error) }));
   }
+  refreshAll();
+  redirect(developmentReturn(formData, { saved: "person" }));
 }
 
-export async function syncGoogleRosterAction() {
+export async function updateDevelopmentPersonAction(formData: FormData) {
   try {
-    const result = await syncDevelopmentReport(googleSheetsDevelopmentReportSource());
-    refreshAll();
-    return { result };
+    await updateDevelopmentPerson(String(formData.get("id") || ""), {
+      storeId: String(formData.get("storeId") || ""),
+      name: String(formData.get("name") || ""),
+      position: String(formData.get("position") || ""),
+    });
   } catch (error) {
-    return { error: message(error) };
+    redirect(developmentReturn(formData, { error: message(error) }));
   }
+  refreshAll();
+  redirect(developmentReturn(formData, { saved: "person" }));
+}
+
+export async function deactivateDevelopmentPersonAction(formData: FormData) {
+  try {
+    await deactivateDevelopmentPerson(String(formData.get("id") || ""));
+  } catch (error) {
+    redirect(developmentReturn(formData, { error: message(error) }));
+  }
+  refreshAll();
+  redirect(developmentReturn(formData, { saved: "removed" }));
+}
+
+export async function restoreDevelopmentPersonAction(formData: FormData) {
+  try {
+    await restoreDevelopmentPerson(String(formData.get("id") || ""));
+  } catch (error) {
+    redirect(developmentReturn(formData, { error: message(error) }));
+  }
+  refreshAll();
+  redirect(developmentReturn(formData, { saved: "person" }));
 }
 
 export async function signInAction(input: { login?: string; password: string; nextPath: string }) {

@@ -31,7 +31,7 @@ const tiles = [
   {
     href: "/admin/roster",
     title: "Trainer roster",
-    text: "Qualified trainers come from the weekly Development Report.",
+    text: "Qualified trainers are added on the Development page.",
     show: "roster_import" as const,
   },
   {
@@ -69,7 +69,7 @@ export default async function AdminPage({
       <PageHeader
         kicker="Desk setup"
         title="Admin"
-        description="Trainers update from the Development Report. Pick a section below."
+        description="People on the roster are added from Development. Pick a section below."
       />
       <Flash error={one(params.error)} notice="" />
       <div className="grid gap-3 sm:grid-cols-2">
