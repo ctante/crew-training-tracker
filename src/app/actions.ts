@@ -34,7 +34,15 @@ import {
 } from "@/lib/data";
 import { access, loadRoleDefaults, requireAdmin } from "@/lib/access";
 import { effectivePermissions, isPermission, isUserRole, type Permission, type UserRole } from "@/lib/permissions";
-import { copyDevelopmentWeek, importDevelopmentRows, parseDevelopmentCsv, saveDevelopmentWeek } from "@/lib/development";
+import {
+  addDevelopmentTask,
+  copyDevelopmentWeek,
+  importDevelopmentRows,
+  parseDevelopmentCsv,
+  removeDevelopmentTask,
+  renameDevelopmentTask,
+  saveDevelopmentWeek,
+} from "@/lib/development";
 import { matchUserLogin, resetUserPermissions, saveAppUser, saveRoleDefaults, type UserDraft } from "@/lib/users";
 import { prisma } from "@/lib/db";
 import { googleSheetsDevelopmentReportSource } from "@/lib/roster/google-sheets";
@@ -500,6 +508,37 @@ export async function importDevelopmentAction(formData: FormData) {
   } catch (error) {
     redirect(developmentPath(week, store, position, { error: message(error) }));
   }
+}
+
+export async function addDevelopmentTaskAction(formData: FormData) {
+  try {
+    await addDevelopmentTask(String(formData.get("label") || ""));
+  } catch (error) {
+    redirect(`/admin/development?error=${encodeURIComponent(message(error))}`);
+  }
+  refreshAll();
+  redirect("/admin/development?saved=1");
+}
+
+export async function renameDevelopmentTaskAction(formData: FormData) {
+  const id = String(formData.get("id") || "");
+  try {
+    await renameDevelopmentTask(id, String(formData.get("label") || ""));
+  } catch (error) {
+    redirect(`/admin/development?error=${encodeURIComponent(message(error))}`);
+  }
+  refreshAll();
+  redirect("/admin/development?saved=1");
+}
+
+export async function removeDevelopmentTaskAction(formData: FormData) {
+  try {
+    await removeDevelopmentTask(String(formData.get("id") || ""));
+  } catch (error) {
+    redirect(`/admin/development?error=${encodeURIComponent(message(error))}`);
+  }
+  refreshAll();
+  redirect("/admin/development?saved=1");
 }
 
 export async function resetSampleAction(formData: FormData) {

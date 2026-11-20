@@ -1,13 +1,12 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import { FilterSelect } from "@/components/filter-select";
+import { ScheduleGroups } from "@/components/schedule-groups";
 import { TraineeSearch } from "@/components/trainee-search";
-import { Flag, PageHeader } from "@/components/ui";
+import { PageHeader } from "@/components/ui";
 import { groupByTrainerPosition } from "@/lib/constants";
 import { getSchedule } from "@/lib/data";
 import { formatMonth, formatShortDate, monthGrid, one, sessionWindow, shiftMonth, storeLabel, withParams } from "@/lib/format";
-import { sessionSurface } from "@/lib/session-tone";
-import type { ScheduleSession } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -204,7 +203,7 @@ export default async function SchedulePage({
         <h2 className="mt-4 font-display text-2xl">
           {tab === "overdue" ? "Overdue" : tab === "done" ? "Done" : "Scheduled"}
         </h2>
-        <TraineeGroups
+        <ScheduleGroups
           sessions={tab === "overdue" ? overdue : tab === "done" ? doneInRange : upcoming}
           empty={tab === "overdue" ? "No overdue sessions." : tab === "done" ? "No completed sessions in these dates." : "No open sessions in these dates."}
         />
@@ -213,60 +212,3 @@ export default async function SchedulePage({
   );
 }
 
-function TraineeGroups({ sessions, empty }: { sessions: ScheduleSession[]; empty: string }) {
-  const map = new Map<string, ScheduleSession[]>();
-  for (const session of [...sessions].sort((a, b) => a.date.localeCompare(b.date))) {
-    map.set(session.traineeId, [...(map.get(session.traineeId) ?? []), session]);
-  }
-  const groups = [...map.entries()].sort((a, b) => a[1][0].storeNumber.localeCompare(b[1][0].storeNumber) || a[1][0].traineeName.localeCompare(b[1][0].traineeName));
-  if (groups.length === 0) {
-    return <p className="mt-2 rounded-3xl border border-dashed border-line bg-card px-4 py-8 text-center text-sm text-ink/70">{empty}</p>;
-  }
-  return (
-    <div className="mt-3 space-y-3">
-      {groups.map(([traineeId, rows]) => (
-        <section key={traineeId} className="rounded-3xl border border-line bg-card p-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-ink/45">{storeLabel(rows[0].storeNumber)}</p>
-          <h3 className="text-lg font-semibold">{rows[0].traineeName}</h3>
-          <div className="mt-2 space-y-2">
-            {rows.map((session) => (
-              <SessionCard key={session.id} session={session} />
-            ))}
-          </div>
-        </section>
-      ))}
-    </div>
-  );
-}
-
-function SessionCard({ session }: { session: ScheduleSession }) {
-  return (
-    <Link
-      href={`/trainees/${session.traineeId}#module-${session.sortOrder}`}
-      className={`block rounded-3xl border px-4 py-3 shadow-sm ${sessionSurface({ overdue: session.overdue, dueToday: session.dueToday })}`}
-    >
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-ink/45">
-            {storeLabel(session.storeNumber)} · {session.sectionTitle}
-            {session.timeLabel ? ` · ${session.timeLabel}` : ""}
-          </p>
-          <p className="font-semibold">{session.traineeName}</p>
-          <p className="text-sm text-ink/75">{session.moduleName}</p>
-        </div>
-        <div className="flex flex-wrap gap-1">
-          {session.overdue ? <Flag kind="overdue">Overdue</Flag> : null}
-          {session.dueToday ? <Flag kind="today">Due today</Flag> : null}
-          {session.traineeStatus === "PAUSED" ? <Flag kind="paused">Paused</Flag> : null}
-          <Flag kind={session.kind === "campus" ? "campus" : session.kind === "app" ? "app" : "floor"}>
-            {session.kind === "campus" ? "Campus" : session.kind === "app" ? "App" : "Floor"}
-          </Flag>
-        </div>
-      </div>
-      <p className="mt-1 text-sm text-ink/70">
-        {session.trainerName ? session.trainerName : "Trainer not assigned"}
-        {session.trainerIsGm ? " · GM" : ""}
-      </p>
-    </Link>
-  );
-}

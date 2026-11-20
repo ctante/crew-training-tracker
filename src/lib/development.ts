@@ -4,71 +4,30 @@ import { access, allows, assertPermission, seesStoreId, visibleStoreNumbers, typ
 import { canonicalTrainerPosition, compareTrainers } from "./constants";
 import { parseCsv, toCsv } from "./csv";
 import { prisma } from "./db";
+import {
+  convertHours,
+  developmentHours,
+  mondayOf,
+  parseWeekLabel,
+  weekLabel,
+  type DevelopmentStoreWeek,
+} from "./development-hours";
 import { addDays, normalizeStoreNumber, todayIso } from "./format";
 
-export type DevelopmentPerson = {
-  id: string;
-  name: string;
-  position: string;
-  hours: string;
-  comments: string;
-};
-
-export type DevelopmentStoreWeek = {
-  id: string;
-  number: string;
-  notes: string;
-  hoursTotal: number;
-  people: DevelopmentPerson[];
-};
+export {
+  HOUR_CHOICES,
+  convertHours,
+  developmentHours,
+  formatHourTotal,
+  mondayOf,
+  parseWeekLabel,
+  weekLabel,
+  type DevelopmentPerson,
+  type DevelopmentStoreWeek,
+} from "./development-hours";
 
 export type SheetPerson = { name: string; position: string; hours: string; comments: string };
 export type SheetStore = { store: string; week: string; notes: string; people: SheetPerson[] };
-
-export function mondayOf(iso: string): string {
-  const [year, month, day] = iso.split("-").map(Number);
-  const date = new Date(Date.UTC(year, month - 1, day));
-  const weekday = date.getUTCDay();
-  const delta = weekday === 0 ? -6 : 1 - weekday;
-  date.setUTCDate(date.getUTCDate() + delta);
-  return date.toISOString().slice(0, 10);
-}
-
-export function weekLabel(start: string): string {
-  const end = addDays(start, 6);
-  const short = (value: string) => {
-    const [, month, day] = value.split("-");
-    return `${month}/${day}`;
-  };
-  return `Week of ${short(start)}-${short(end)}`;
-}
-
-export function parseWeekLabel(label: string, year = 2026): string | null {
-  const match = /week of\s+(\d{1,2})\/(\d{1,2})\s*-\s*(\d{1,2})\/(\d{1,2})/i.exec(label.trim());
-  if (!match) return null;
-  const month = match[1].padStart(2, "0");
-  const day = match[2].padStart(2, "0");
-  return mondayOf(`${year}-${month}-${day}`);
-}
-
-export function developmentHours(value: string): number {
-  const parts = value.split("+").map((part) => part.trim()).filter(Boolean);
-  let total = 0;
-  let any = false;
-  for (const part of parts) {
-    const number = Number(part);
-    if (Number.isFinite(number)) {
-      total += number;
-      any = true;
-    }
-  }
-  return any ? total : 0;
-}
-
-export function formatHourTotal(value: number): string {
-  if (!Number.isFinite(value) || value === 0) return "0";
-  return Number.isInteger(value) ? String(value) : String(Math.round(value * 10) / 10);
-}
 
 export function personKey(name: string): string {
   return name.trim().toLowerCase().replace(/[’‘]/g, "'").replace(/\s+/g, " ");
@@ -79,10 +38,11 @@ function bundledSheet(): SheetStore[] {
 }
 
 export async function importDevelopmentRows(
-  rows: { storeNumber: string; name: string; hours: string; comments: string; weekStart: string; notes?: string }[],
+  rows: { storeNumber: string; name: string; hours: string; comments: string; trainingNeeded?: string; weekStart: string; notes?: string }[],
 ) {
   const who = await access();
   assertPermission(who, "edit_development");
+  const taskLabels = new Set((await prisma.developmentTask.findMany()).map((task) => task.label));
   const stores = await prisma.store.findMany({ include: { staff: { where: { active: true } } } });
   const byNumber = new Map(stores.map((store) => [store.number, store]));
   const unmatched: { storeNumber: string; name: string }[] = [];
@@ -115,8 +75,26 @@ export async function importDevelopmentRows(
     for (const person of matches) {
       await prisma.developmentEntry.upsert({
         where: { weekId_staffId: { weekId: week.id, staffId: person.id } },
-        create: { weekId: week.id, staffId: person.id, hours: row.hours, comments: row.comments },
-        update: { hours: row.hours, comments: row.comments },
+        create: {
+          weekId: week.id,
+          staffId: person.id,
+          hours: convertHours(row.hours).hours,
+          trainingNeeded: taskLabels.has(row.trainingNeeded ?? "")
+            ? (row.trainingNeeded ?? "")
+            : taskLabels.has(row.comments.trim())
+              ? row.comments.trim()
+              : "",
+          comments: row.comments,
+        },
+        update: {
+          hours: convertHours(row.hours).hours,
+          trainingNeeded: taskLabels.has(row.trainingNeeded ?? "")
+            ? (row.trainingNeeded ?? "")
+            : taskLabels.has(row.comments.trim())
+              ? row.comments.trim()
+              : "",
+          comments: row.comments,
+        },
       });
     }
     entries += 1;
@@ -164,7 +142,36 @@ export async function importBundledDevelopmentSheet() {
     `Development sheet: ${result.entries} entries, ${result.notes} store notes, ${result.unmatched.length} unmatched.${unmatched ? ` Unmatched: ${unmatched}` : ""}`,
   );
   if (result.missingStores.length) console.log(`Development sheet missing restaurants: ${result.missingStores.join(", ")}.`);
-  return result;
+  const normalized = await normalizeDevelopmentEntries();
+  return { ...result, ...normalized };
+}
+
+export async function normalizeDevelopmentEntries() {
+  const tasks = new Set((await prisma.developmentTask.findMany()).map((task) => task.label));
+  const entries = await prisma.developmentEntry.findMany({ include: { staff: true, week: { include: { store: true } } } });
+  const unconverted: string[] = [];
+  let hoursChanged = 0;
+  let trainingSet = 0;
+  for (const entry of entries) {
+    const hours = convertHours(entry.hours);
+    const comment = entry.comments.trim();
+    const trainingNeeded = entry.trainingNeeded || (tasks.has(comment) ? comment : "");
+    if (!hours.converted) unconverted.push(`${entry.week.store.number} ${entry.staff.name}: ${entry.hours}`);
+    const nextHours = hours.converted ? hours.hours : entry.hours;
+    if (nextHours !== entry.hours || trainingNeeded !== entry.trainingNeeded) {
+      await prisma.developmentEntry.update({
+        where: { id: entry.id },
+        data: { hours: nextHours, trainingNeeded },
+      });
+      if (nextHours !== entry.hours) hoursChanged += 1;
+      if (trainingNeeded && trainingNeeded !== entry.trainingNeeded) trainingSet += 1;
+    }
+  }
+  console.log(
+    `Development hours converted: ${hoursChanged}. Unconverted: ${unconverted.length ? unconverted.join("; ") : "none"}.`,
+  );
+  console.log(`Development training needed set from comments: ${trainingSet}.`);
+  return { hoursChanged, unconverted, trainingSet };
 }
 
 export function parseDevelopmentCsv(csv: string, weekStart: string) {
@@ -176,6 +183,7 @@ export function parseDevelopmentCsv(csv: string, weekStart: string) {
   const storeCol = index(["restaurant", "store", "store number"]);
   const hoursCol = index(["training hours needed", "hours"]);
   const commentsCol = index(["comments", "work", "work/comments"]);
+  const trainingCol = index(["training needed"]);
   if (nameCol < 0 || storeCol < 0) throw new Error("The header needs Employee and Restaurant columns.");
   return table.slice(1).flatMap((row) => {
     const name = (row[nameCol] ?? "").trim();
@@ -187,6 +195,7 @@ export function parseDevelopmentCsv(csv: string, weekStart: string) {
         name,
         hours: hoursCol >= 0 ? (row[hoursCol] ?? "").trim() : "",
         comments: commentsCol >= 0 ? (row[commentsCol] ?? "").trim() : "",
+        trainingNeeded: trainingCol >= 0 ? (row[trainingCol] ?? "").trim() : "",
         weekStart,
       },
     ];
@@ -231,6 +240,7 @@ export async function getDevelopment(filters: { week?: string; store?: string; p
         name: person.name,
         position: canonicalTrainerPosition(person.position) || person.position,
         hours: entryByStaff.get(person.id)?.hours ?? "",
+        trainingNeeded: entryByStaff.get(person.id)?.trainingNeeded ?? "",
         comments: entryByStaff.get(person.id)?.comments ?? "",
       }))
       .sort(compareTrainers);
@@ -252,6 +262,7 @@ export async function getDevelopment(filters: { week?: string; store?: string; p
     store: filters.store && filters.store !== "all" ? filters.store : "",
     position,
     canEdit: allows(who, "edit_development"),
+    tasks: (await prisma.developmentTask.findMany({ orderBy: { sortOrder: "asc" } })).map((task) => task.label),
     canChooseStores: choices.length > 1,
     stores: choices.map((store) => store.number),
     sections,
@@ -262,7 +273,8 @@ export async function saveDevelopmentWeek(weekStart: string, formData: FormData)
   const who = await access();
   assertPermission(who, "edit_development");
   const start = mondayOf(weekStart);
-  const sections = new Map<string, { notes: string; people: { id: string; hours: string; comments: string }[] }>();
+  const taskLabels = new Set((await prisma.developmentTask.findMany()).map((task) => task.label));
+  const sections = new Map<string, { notes: string; people: { id: string; hours: string; trainingNeeded: string; comments: string }[] }>();
   for (const [key, value] of formData.entries()) {
     const text = String(value);
     if (key.startsWith("notes:")) {
@@ -270,17 +282,21 @@ export async function saveDevelopmentWeek(weekStart: string, formData: FormData)
       const current = sections.get(storeId) ?? { notes: "", people: [] };
       current.notes = text.slice(0, 2000);
       sections.set(storeId, current);
-    } else if (key.startsWith("hours:") || key.startsWith("comments:")) {
+    } else if (key.startsWith("hours:") || key.startsWith("training:") || key.startsWith("comments:")) {
       const [kind, staffId] = key.split(":");
       const staff = await prisma.staff.findUnique({ where: { id: staffId } });
       if (!staff || !seesStoreId(who, staff.storeId)) continue;
       const current = sections.get(staff.storeId) ?? { notes: "", people: [] };
       let person = current.people.find((item) => item.id === staff.id);
       if (!person) {
-        person = { id: staff.id, hours: "", comments: "" };
+        person = { id: staff.id, hours: "", trainingNeeded: "", comments: "" };
         current.people.push(person);
       }
-      if (kind === "hours") person.hours = text.slice(0, 40);
+      if (kind === "hours") {
+        const converted = convertHours(text);
+        person.hours = converted.converted ? converted.hours : "";
+      }
+      else if (kind === "training") person.trainingNeeded = taskLabels.has(text) ? text : "";
       else person.comments = text.slice(0, 2000);
       sections.set(staff.storeId, current);
     }
@@ -293,14 +309,20 @@ export async function saveDevelopmentWeek(weekStart: string, formData: FormData)
       update: { notes: section.notes },
     });
     for (const person of section.people) {
-      if (!person.hours && !person.comments) {
+      if (!person.hours && !person.trainingNeeded && !person.comments) {
         await prisma.developmentEntry.deleteMany({ where: { weekId: week.id, staffId: person.id } });
         continue;
       }
       await prisma.developmentEntry.upsert({
         where: { weekId_staffId: { weekId: week.id, staffId: person.id } },
-        create: { weekId: week.id, staffId: person.id, hours: person.hours, comments: person.comments },
-        update: { hours: person.hours, comments: person.comments },
+        create: {
+          weekId: week.id,
+          staffId: person.id,
+          hours: person.hours,
+          trainingNeeded: person.trainingNeeded,
+          comments: person.comments,
+        },
+        update: { hours: person.hours, trainingNeeded: person.trainingNeeded, comments: person.comments },
       });
     }
   }
@@ -330,6 +352,7 @@ export async function copyDevelopmentWeek(weekStart: string, storeNumbers: strin
           weekId: week.id,
           staffId: entry.staffId,
           hours: entry.hours,
+          trainingNeeded: entry.trainingNeeded,
           comments: entry.comments,
         })),
       });
@@ -337,14 +360,48 @@ export async function copyDevelopmentWeek(weekStart: string, storeNumbers: strin
   }
 }
 
+export async function listDevelopmentTasks() {
+  const who = await access();
+  if (who.role !== "admin") redirect("/");
+  return prisma.developmentTask.findMany({ orderBy: { sortOrder: "asc" } });
+}
+
+export async function addDevelopmentTask(label: string) {
+  const who = await access();
+  if (who.role !== "admin") throw new Error("Only an admin can change training needed options.");
+  const name = label.trim();
+  if (!name) throw new Error("Enter a name.");
+  const last = await prisma.developmentTask.findFirst({ orderBy: { sortOrder: "desc" } });
+  await prisma.developmentTask.create({ data: { label: name.slice(0, 80), sortOrder: (last?.sortOrder ?? 0) + 1 } });
+}
+
+export async function renameDevelopmentTask(id: string, label: string) {
+  const who = await access();
+  if (who.role !== "admin") throw new Error("Only an admin can change training needed options.");
+  const name = label.trim();
+  if (!name) throw new Error("Enter a name.");
+  const current = await prisma.developmentTask.findUnique({ where: { id } });
+  if (!current) throw new Error("That option is no longer on the list.");
+  if (current.label === name) return;
+  await prisma.developmentTask.update({ where: { id }, data: { label: name.slice(0, 80) } });
+  await prisma.developmentEntry.updateMany({ where: { trainingNeeded: current.label }, data: { trainingNeeded: name.slice(0, 80) } });
+}
+
+export async function removeDevelopmentTask(id: string) {
+  const who = await access();
+  if (who.role !== "admin") throw new Error("Only an admin can change training needed options.");
+  await prisma.developmentTask.delete({ where: { id } });
+}
+
 export async function developmentCsv(filters: { week?: string; store?: string; position?: string }) {
   const data = await getDevelopment(filters);
-  const rows = [["Employee", "Restaurant", "Position", "Training Hours Needed", "Comments"]];
+  const rows = [["Employee", "Restaurant", "Position", "Training Hours Needed", "Training Needed", "Comments"]];
   for (const store of data.sections) {
     for (const person of store.people) {
-      rows.push([person.name, store.number, person.position, person.hours, person.comments]);
+      if (!person.hours && !person.trainingNeeded && !person.comments) continue;
+      rows.push([person.name, store.number, person.position, person.hours, person.trainingNeeded, person.comments]);
     }
-    if (store.notes) rows.push(["(Store note)", store.number, "", "", store.notes]);
+    if (store.notes) rows.push(["(Store note)", store.number, "", "", "", store.notes]);
   }
   const span = data.store || "all-stores";
   return { filename: `development-${span}-${data.weekStart}.csv`, csv: toCsv(rows) };
