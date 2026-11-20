@@ -46,6 +46,12 @@ const tiles = [
     text: "Import a sheet of trainee progress or export the current file.",
     show: "roster_import" as const,
   },
+  {
+    href: "/admin/development",
+    title: "Training needed",
+    text: "The dropdown of development work, such as Inventory or ITS Training.",
+    show: "admin" as const,
+  },
 ];
 
 export default async function AdminPage({

@@ -1,9 +1,10 @@
 import Link from "next/link";
-import { copyDevelopmentAction, importDevelopmentAction, saveDevelopmentAction } from "@/app/actions";
+import { copyDevelopmentAction, importDevelopmentAction } from "@/app/actions";
+import { DevelopmentBoard } from "@/components/development-board";
 import { PrintButton } from "@/components/print-button";
 import { Flash, PageHeader, fieldClass, ghostButton, primaryButton } from "@/components/ui";
 import { TRAINER_POSITION_ORDER } from "@/lib/constants";
-import { formatHourTotal, getDevelopment } from "@/lib/development";
+import { getDevelopment } from "@/lib/development";
 import { one, withParams } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -32,7 +33,7 @@ export default async function DevelopmentPage({
       <PageHeader
         kicker="Development"
         title={data.label}
-        description="Monday through Sunday, matching the development sheet. Hours can be a number or text such as 2+2. Rows with work are highlighted. The total adds the numbers in each hours cell."
+        description="Monday through Sunday. This view lists people who have hours, training needed, or comments. Edit shows the whole roster. Hours are chosen from a list."
         actions={
           <div className="flex flex-wrap gap-2 print:hidden">
             <PrintButton />
@@ -103,91 +104,19 @@ export default async function DevelopmentPage({
       ) : (
         <p className="mb-4 text-sm text-ink/60 print:hidden">You can view this week. An admin edits hours and comments.</p>
       )}
-      <form action={saveDevelopmentAction}>
-        <input type="hidden" name="week" value={data.weekStart} />
-        <input type="hidden" name="store" value={data.store} />
-        <input type="hidden" name="position" value={data.position} />
-        <div className="space-y-6">
-          {data.sections.map((store) => (
-            <section key={store.id} className="rounded-3xl border border-line bg-card p-4 print:break-inside-avoid print:border-0 print:p-0">
-              <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <h2 className="font-display text-3xl">{store.number}</h2>
-                <p className="text-sm font-semibold">{formatHourTotal(store.hoursTotal)} hours this week</p>
-              </div>
-              <label className="mt-3 block text-sm font-semibold">
-                Store notes
-                {data.canEdit ? (
-                  <textarea
-                    className={`${fieldClass} mt-1 min-h-20`}
-                    name={`notes:${store.id}`}
-                    defaultValue={store.notes}
-                  />
-                ) : (
-                  <span className="mt-1 block whitespace-pre-wrap font-normal text-ink/80">{store.notes || "None"}</span>
-                )}
-              </label>
-              <div className="mt-4 overflow-x-auto">
-                <table className="w-full min-w-[40rem] border-collapse text-sm">
-                  <thead>
-                    <tr className="border-b border-line text-left">
-                      <th className="py-2 pr-3 font-semibold">Employee</th>
-                      <th className="py-2 pr-3 font-semibold">Position</th>
-                      <th className="py-2 pr-3 font-semibold">Training Hours Needed</th>
-                      <th className="py-2 font-semibold">Comments</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {store.people.map((person) => {
-                      const working = Boolean(person.hours.trim() || person.comments.trim());
-                      return (
-                        <tr key={person.id} className={working ? "bg-sun/50" : undefined}>
-                          <td className="py-2 pr-3 align-top font-semibold">{person.name}</td>
-                          <td className="py-2 pr-3 align-top">{person.position}</td>
-                          <td className="py-2 pr-3 align-top">
-                            {data.canEdit ? (
-                              <input
-                                className={fieldClass}
-                                name={`hours:${person.id}`}
-                                defaultValue={person.hours}
-                                aria-label={`Hours for ${person.name}`}
-                              />
-                            ) : (
-                              person.hours
-                            )}
-                          </td>
-                          <td className="py-2 align-top">
-                            {data.canEdit ? (
-                              <textarea
-                                className={`${fieldClass} min-h-16`}
-                                name={`comments:${person.id}`}
-                                defaultValue={person.comments}
-                                aria-label={`Comments for ${person.name}`}
-                              />
-                            ) : (
-                              <span className="whitespace-pre-wrap">{person.comments}</span>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-                {store.people.length === 0 ? <p className="mt-3 text-sm text-ink/60">No one on this roster.</p> : null}
-              </div>
-            </section>
-          ))}
-        </div>
-        {data.canEdit ? (
-          <button className={`${primaryButton} mt-4 print:hidden`} type="submit">
-            Save week
-          </button>
-        ) : null}
-      </form>
+      <DevelopmentBoard
+        sections={data.sections}
+        canEdit={data.canEdit}
+        tasks={data.tasks}
+        week={data.weekStart}
+        store={data.store}
+        position={data.position}
+      />
       {data.canEdit ? (
         <details className="mt-6 rounded-3xl border border-line bg-card p-4 print:hidden">
           <summary className="cursor-pointer font-semibold">Import a development CSV</summary>
           <p className="mt-2 text-sm text-ink/70">
-            Columns: Employee, Restaurant, Position, Training Hours Needed, Comments. This writes the week shown above.
+            Columns: Employee, Restaurant, Position, Training Hours Needed, Training Needed, Comments. This writes the week shown above.
             Names must already be on that restaurant’s roster. Use this when promoting a sheet onto the live site later.
           </p>
           <form action={importDevelopmentAction} className="mt-3 flex flex-wrap items-end gap-3">

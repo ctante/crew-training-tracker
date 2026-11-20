@@ -45,7 +45,7 @@ A person only sees the restaurants on the account. Reports, the board, the sched
 
 ## Development
 
-Development is the weekly sheet of hours and comments for managers and crew trainers. Weeks run Monday through Sunday and are labeled like Week of 11/23-11/29. Each restaurant can also keep a note for that week. Copy last week carries the previous week forward. Download CSV uses the sheet columns: Employee, Restaurant, Position, Training Hours Needed, Comments.
+Development is the weekly sheet for managers and crew trainers. Weeks run Monday through Sunday and are labeled like Week of 11/23-11/29. The first view shows people who have hours, training needed, or comments. Edit lists the whole roster. Hours are a dropdown from 0.5 to 10. Training Needed is a dropdown an admin maintains under Admin, then Training needed. Comments stay free text. Copy last week carries the previous week forward. Download CSV uses Employee, Restaurant, Position, Training Hours Needed, Training Needed, Comments.
 
 Managers and supervisors can view it. Admins can edit it, and can grant Edit development to someone else. An admin can also import a CSV of those columns into the week on screen. That import is the way to load a sheet onto the live site later. A beta deploy loads the bundled sheet by itself. A production deploy does not.
 

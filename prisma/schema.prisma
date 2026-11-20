@@ -98,16 +98,25 @@ model DevelopmentWeek {
 }
 
 model DevelopmentEntry {
-  id       String          @id @default(cuid())
-  weekId   String
-  week     DevelopmentWeek @relation(fields: [weekId], references: [id], onDelete: Cascade)
-  staffId  String
-  staff    Staff           @relation(fields: [staffId], references: [id], onDelete: Cascade)
-  hours    String          @default("")
-  comments String          @default("")
+  id              String          @id @default(cuid())
+  weekId          String
+  week            DevelopmentWeek @relation(fields: [weekId], references: [id], onDelete: Cascade)
+  staffId         String
+  staff           Staff           @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  hours           String          @default("")
+  trainingNeeded  String          @default("")
+  comments        String          @default("")
 
   @@unique([weekId, staffId])
   @@index([staffId])
+}
+
+model DevelopmentTask {
+  id        String @id @default(cuid())
+  label     String @unique
+  sortOrder Int
+
+  @@index([sortOrder])
 }
 
 model Module {
