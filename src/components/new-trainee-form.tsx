@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createTraineeAction } from "@/app/actions";
+import { EmployeeNameField } from "@/components/employee-name-field";
 import { fieldClass, primaryButton } from "@/components/ui";
 
 export function NewTraineeForm({
@@ -40,10 +41,7 @@ export function NewTraineeForm({
         });
       }}
     >
-      <label className="text-sm font-semibold">
-        Name
-        <input className={`${fieldClass} mt-1`} name="name" required minLength={2} placeholder="First and last name" />
-      </label>
+      <EmployeeNameField storeField="storeId" label="Name" />
       <label className="text-sm font-semibold">
         Restaurant
         <select className={`${fieldClass} mt-1`} name="storeId" required defaultValue={stores[0]?.id}>

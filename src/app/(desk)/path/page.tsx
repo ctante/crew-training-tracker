@@ -8,7 +8,7 @@ import { formatMinutes, one, splitTitles } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = { title: "Training path" };
+export const metadata = { title: "Crew Training Path" };
 
 export default async function PathPage({
   searchParams,
@@ -23,7 +23,7 @@ export default async function PathPage({
     <div>
       <PageHeader
         kicker="One central copy"
-        title={language === "es" ? "Ruta en español" : "English training path"}
+        title={language === "es" ? "Ruta de Entrenamiento del Equipo" : "Crew Training Path"}
         description="Catalog order starts with Orientation, then Foundation, then Service or Production. A trainee schedule shows Orientation and Foundation plus the path they chose."
         actions={
           <Link href={`/admin/modules?lang=${language}`} className="inline-flex min-h-11 items-center rounded-full bg-brick px-4 text-sm font-semibold text-white">

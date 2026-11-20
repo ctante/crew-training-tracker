@@ -2,8 +2,10 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { TraineeSearch } from "@/components/trainee-search";
 import { CollapsibleSections } from "@/components/collapsible-sections";
+import { InactiveToggle } from "@/components/inactive-toggle";
 import { Flag, PageHeader } from "@/components/ui";
 import { languageName } from "@/lib/constants";
+import { access } from "@/lib/access";
 import { getDashboard } from "@/lib/data";
 import { one, storeLabel, withParams } from "@/lib/format";
 
@@ -19,7 +21,9 @@ export default async function TraineesPage({
   const params = await searchParams;
   const list = one(params.list) || "progress";
   const query = one(params.q);
-  const data = await getDashboard({ status: "all", query });
+  const who = await access();
+  const showInactive = who.role === "admin" && one(params.inactive) === "1";
+  const data = await getDashboard({ status: "all", query, showInactive });
   const rows = data.rows.filter((row) => {
     if (list === "all") return true;
     if (list === "done") return row.scheduleComplete;
@@ -44,11 +48,14 @@ export default async function TraineesPage({
         actions={
           data.canManageTrainees ? (
             <Link href="/trainees/new" className="inline-flex min-h-11 items-center rounded-full bg-brick px-4 text-sm font-semibold text-white">
-              Add trainee
+              Add Trainee
             </Link>
           ) : null
         }
       />
+      <div className="mb-3">
+        <InactiveToggle admin={who.role === "admin"} on={showInactive} path="/trainees" query={{ q: query, list: list === "progress" ? "" : list }} />
+      </div>
       <div className="mb-4 max-w-xs">
         <Suspense fallback={null}>
           <TraineeSearch />

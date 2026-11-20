@@ -26,7 +26,8 @@ export default async function TraineePage({
   const { id } = await params;
   const query = await searchParams;
   const who = await access();
-  const trainee = await getTrainee(id);
+  const showInactive = who.role === "admin" && one(query.inactive) === "1";
+  const trainee = await getTrainee(id, who, showInactive);
   if (!trainee) notFound();
   const canEdit = allows(who, "trainees_edit");
   const canDeactivate = allows(who, "trainees_deactivate");

@@ -24,7 +24,7 @@ export default async function RoleDefaultsPage({
       <AdminNav current="/admin/permissions" />
       <PageHeader
         kicker="Admin"
-        title="Role defaults"
+        title="Role Defaults"
         description="These boxes are the starting permissions for a new person in that role. Admins always have every permission. Take one away on that person's account, not here. A person who already has an override keeps it."
       />
       <Flash error="" notice={one(params.saved) ? "Role defaults saved." : ""} />

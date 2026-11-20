@@ -25,7 +25,33 @@ export function StoreMultiSelect({
         .map(([key, value]) => (
           <input key={key} type="hidden" name={key} value={value} />
         ))}
-      <p className="text-sm font-semibold">Restaurants</p>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm font-semibold">Restaurants</p>
+        <div className="flex gap-2">
+          <button
+            className="min-h-11 rounded-full border border-line px-3 text-sm font-semibold"
+            type="button"
+            onClick={() => {
+              setOrg(true);
+              setPicked(stores);
+            }}
+          >
+            Select All
+            <span className="mt-0.5 block text-[10px] font-normal">Seleccionar todo</span>
+          </button>
+          <button
+            className="min-h-11 rounded-full border border-line px-3 text-sm font-semibold"
+            type="button"
+            onClick={() => {
+              setOrg(false);
+              setPicked([]);
+            }}
+          >
+            Clear All
+            <span className="mt-0.5 block text-[10px] font-normal">Borrar todo</span>
+          </button>
+        </div>
+      </div>
       <div className="mt-2 flex flex-wrap gap-2">
         <label className="inline-flex min-h-11 items-center gap-2 rounded-full border border-line bg-paper px-3 text-sm font-semibold">
           <input

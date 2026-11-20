@@ -2,9 +2,11 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { copyDevelopmentAction, importDevelopmentAction } from "@/app/actions";
 import { DevelopmentBoard } from "@/components/development-board";
+import { InactiveToggle } from "@/components/inactive-toggle";
 import { PrintButton } from "@/components/print-button";
 import { Flash, PageHeader, fieldClass, ghostButton, primaryButton } from "@/components/ui";
 import { TRAINER_POSITION_ORDER } from "@/lib/constants";
+import { access } from "@/lib/access";
 import { getDevelopment } from "@/lib/development";
 import { one, withParams } from "@/lib/format";
 
@@ -19,10 +21,13 @@ export default async function DevelopmentPage({
 }) {
   const params = await searchParams;
   const requestedWeek = one(params.week);
+  const who = await access();
+  const showInactive = who.role === "admin" && one(params.inactive) === "1";
   const data = await getDevelopment({
     week: requestedWeek,
     store: one(params.store),
     position: one(params.position),
+    showInactive,
   });
   if (!requestedWeek && data.weekStart !== data.current) {
     redirect(withParams("/development", { store: data.store, position: data.position }, { week: data.weekStart }));
@@ -49,6 +54,9 @@ export default async function DevelopmentPage({
           </div>
         }
       />
+      <div className="mb-3">
+        <InactiveToggle admin={who.role === "admin"} on={showInactive} path="/development" query={query} />
+      </div>
       <Flash
         error={one(params.error)}
         notice={

@@ -30,8 +30,29 @@ model Store {
   updatedAt      DateTime  @updatedAt
   staff          Staff[]
   trainees       Trainee[]
+  employees      Employee[]
   appUsers       AppUserStore[]
   developmentWeeks DevelopmentWeek[]
+}
+
+model Employee {
+  id           String    @id @default(cuid())
+  storeId      String
+  store        Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  name         String
+  position     String    @default("")
+  active       Boolean   @default(true)
+  externalId   String?
+  source       String    @default("manual")
+  lastSyncedAt DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  trainees     Trainee[]
+  staff        Staff[]
+
+  @@unique([storeId, externalId])
+  @@index([storeId])
+  @@index([externalId])
 }
 
 model AppUser {
@@ -77,11 +98,14 @@ model Staff {
   rosterSource String          @default("manual")
   active       Boolean         @default(true)
   isSample     Boolean         @default(false)
+  employeeId   String?
+  employee     Employee?       @relation(fields: [employeeId], references: [id], onDelete: SetNull)
   createdAt    DateTime        @default(now())
   assignments  TraineeModule[]
   developmentEntries DevelopmentEntry[]
 
   @@index([storeId])
+  @@index([employeeId])
 }
 
 model DevelopmentWeek {
@@ -157,12 +181,15 @@ model Trainee {
   firstPathCompletedOn String?
   status               String          @default("ACTIVE")
   isSample  Boolean         @default(false)
+  employeeId String?
+  employee   Employee?       @relation(fields: [employeeId], references: [id], onDelete: SetNull)
   createdAt DateTime        @default(now())
   updatedAt DateTime        @updatedAt
   modules   TraineeModule[]
 
   @@index([storeId])
   @@index([status])
+  @@index([employeeId])
 }
 
 model TraineeModule {

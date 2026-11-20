@@ -15,6 +15,7 @@ import {
 import { SECTIONS, blockStart, canonicalTrainerPosition, compareTrainers, moduleKind, type SectionId } from "./constants";
 import { parseCsv, toCsv } from "./csv";
 import { prisma } from "./db";
+import { linkEmployees, visibleLinkedWhere } from "./employees";
 import { hashPassword, verifyPassword } from "./passwords";
 import { matchSharedStorePassword, upsertSharedStoreUser } from "./users";
 import { safeEqual } from "./session";
@@ -301,6 +302,7 @@ export async function getDashboard(filters: {
   status?: string;
   flag?: string;
   query?: string;
+  showInactive?: boolean;
 }) {
   const who = await access();
   const storeWhere = storeNumberWhere(who, filters.storeNumber);
@@ -310,11 +312,14 @@ export async function getDashboard(filters: {
       where: storeWhere,
       orderBy: { number: "asc" },
       include: {
-        staff: { where: { isGm: true, active: true }, orderBy: { name: "asc" } },
+        staff: { where: { isGm: true, active: true, ...visibleLinkedWhere(Boolean(filters.showInactive)) }, orderBy: { name: "asc" } },
       },
     }),
     prisma.trainee.findMany({
-      where: storeWhere ? { store: storeWhere } : undefined,
+      where: {
+        ...(storeWhere ? { store: storeWhere } : {}),
+        ...visibleLinkedWhere(Boolean(filters.showInactive)),
+      },
       include: traineeInclude,
     }),
   ]);
@@ -385,7 +390,7 @@ export async function listStoreChoices() {
   return stores.map((store) => ({ id: store.id, number: store.number, name: store.name }));
 }
 
-export async function getTrainee(id: string, scope?: Access): Promise<TraineeDetail | null> {
+export async function getTrainee(id: string, scope?: Access, showInactive = false): Promise<TraineeDetail | null> {
   const who = scope ?? (await access());
   const today = todayIso();
   const storesWhere = storeIdWhere(who);
@@ -396,11 +401,15 @@ export async function getTrainee(id: string, scope?: Access): Promise<TraineeDet
       orderBy: { number: "asc" },
     }),
     prisma.staff.findMany({
-      where: { active: true, qualified: true, ...(storesWhere ? { store: storesWhere } : {}) },
+      where: { active: true, qualified: true, ...visibleLinkedWhere(showInactive), ...(storesWhere ? { store: storesWhere } : {}) },
     }),
   ]);
   if (!trainee) return null;
   if (!seesStoreId(who, trainee.storeId)) return null;
+  if (!showInactive && trainee.employeeId) {
+    const employer = await prisma.employee.findUnique({ where: { id: trainee.employeeId } });
+    if (employer && !employer.active) return null;
+  }
   const record = trainee as TraineeRecord;
   const options: TrainerOption[] = trainers
     .filter((person) => person.storeId === record.storeId)
@@ -456,6 +465,7 @@ export async function createTrainee(input: {
       modules: { create: modules.map((module) => ({ moduleId: module.id })) },
     },
   });
+  await linkEmployees();
   return trainee.id;
 }
 
@@ -690,7 +700,7 @@ function matchesTraineeName(name: string, query?: string) {
   return name.toLowerCase().includes(needle);
 }
 
-export async function getSchedule(filters: { storeNumber?: string; trainerId?: string; month?: string; query?: string }) {
+export async function getSchedule(filters: { storeNumber?: string; trainerId?: string; month?: string; query?: string; showInactive?: boolean }) {
   const who = await access();
   const storeWhere = storeNumberWhere(who, filters.storeNumber);
   const today = todayIso();
@@ -699,12 +709,13 @@ export async function getSchedule(filters: { storeNumber?: string; trainerId?: s
     prisma.store.findMany({
       where: storeWhere,
       orderBy: { number: "asc" },
-      include: { staff: { where: { isGm: true, active: true } } },
+      include: { staff: { where: { isGm: true, active: true, ...visibleLinkedWhere(Boolean(filters.showInactive)) } } },
     }),
     prisma.staff.findMany({
       where: {
         active: true,
         qualified: true,
+        ...visibleLinkedWhere(Boolean(filters.showInactive)),
         ...(storeWhere ? { store: storeWhere } : {}),
       },
       include: { store: true },
@@ -715,6 +726,7 @@ export async function getSchedule(filters: { storeNumber?: string; trainerId?: s
         scheduledDate: { not: null },
         trainee: {
           status: { in: ["ACTIVE", "PAUSED"] },
+          ...visibleLinkedWhere(Boolean(filters.showInactive)),
           ...(storeWhere ? { store: storeWhere } : {}),
         },
         ...(filters.trainerId ? { trainerId: filters.trainerId } : {}),
@@ -729,7 +741,10 @@ export async function getSchedule(filters: { storeNumber?: string; trainerId?: s
       where: {
         completed: true,
         scheduledDate: { not: null },
-        trainee: storeWhere ? { store: storeWhere } : undefined,
+        trainee: {
+          ...(storeWhere ? { store: storeWhere } : {}),
+          ...visibleLinkedWhere(Boolean(filters.showInactive)),
+        },
         ...(filters.trainerId ? { trainerId: filters.trainerId } : {}),
       },
       include: {
@@ -808,6 +823,7 @@ export async function getScheduledSessions(filters: {
   from?: string;
   to?: string;
   query?: string;
+  showInactive?: boolean;
 }) {
   const who = await access();
   const storeWhere = storeNumberWhere(who, filters.storeNumber);
@@ -821,7 +837,10 @@ export async function getScheduledSessions(filters: {
     prisma.traineeModule.findMany({
       where: {
         scheduledDate: { gte: window.start, lte: window.end },
-        ...(storeWhere ? { trainee: { store: storeWhere } } : {}),
+        trainee: {
+          ...(storeWhere ? { store: storeWhere } : {}),
+          ...visibleLinkedWhere(Boolean(filters.showInactive)),
+        },
       },
       include: {
         trainee: { include: { store: true } },
@@ -833,7 +852,10 @@ export async function getScheduledSessions(filters: {
     where: {
       completed: false,
       scheduledDate: { lt: today },
-      ...(storeWhere ? { trainee: { store: storeWhere } } : {}),
+      trainee: {
+        ...(storeWhere ? { store: storeWhere } : {}),
+        ...visibleLinkedWhere(Boolean(filters.showInactive)),
+      },
     },
     include: {
       trainee: { include: { store: true } },
@@ -1535,7 +1557,10 @@ export async function exportAllCsv() {
   assertPermission(who, "export");
   const stores = storeIdWhere(who);
   const trainees = await prisma.trainee.findMany({
-    where: stores ? { store: stores } : undefined,
+    where: {
+      ...(stores ? { store: stores } : {}),
+      ...visibleLinkedWhere(false),
+    },
     include: traineeInclude,
     orderBy: [{ store: { number: "asc" } }, { name: "asc" }],
   });

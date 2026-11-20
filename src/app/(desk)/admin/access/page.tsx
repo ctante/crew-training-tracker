@@ -26,7 +26,7 @@ export default async function StoreAccessPage({
       <AdminNav current="/admin/access" />
       <PageHeader
         kicker="Admin"
-        title="Store passwords"
+        title="Store Passwords"
         description="Each restaurant has a shared User account. The username is the restaurant number. People can also leave the username blank and enter this password. Saving a new password signs that restaurant out. The password is not shown again."
       />
       <Flash error={one(params.error)} notice={one(params.saved) ? "Password saved. It will not be shown again." : ""} />

@@ -36,7 +36,7 @@ export function AddModuleForm({ language }: { language: "en" | "es" }) {
       <input type="hidden" name="note" value="" />
       <input type="hidden" name="noteEs" value="" />
       <div className="flex flex-wrap items-center justify-between gap-2 sm:col-span-2">
-        <h2 className="font-display text-2xl">Add a module</h2>
+        <h2 className="font-display text-2xl">Add a Module</h2>
         <button className={ghostButton} type="button" onClick={() => setOpen(false)}>
           Close
         </button>

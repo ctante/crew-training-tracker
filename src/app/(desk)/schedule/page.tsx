@@ -3,8 +3,10 @@ import { Suspense } from "react";
 import { FilterSelect } from "@/components/filter-select";
 import { ScheduleGroups } from "@/components/schedule-groups";
 import { TraineeSearch } from "@/components/trainee-search";
+import { InactiveToggle } from "@/components/inactive-toggle";
 import { PageHeader } from "@/components/ui";
 import { groupByTrainerPosition } from "@/lib/constants";
+import { access } from "@/lib/access";
 import { getSchedule } from "@/lib/data";
 import { formatMonth, formatShortDate, monthGrid, one, sessionWindow, shiftMonth, storeLabel, withParams } from "@/lib/format";
 
@@ -26,15 +28,19 @@ export default async function SchedulePage({
   const tab = one(params.tab) || "scheduled";
   const query = one(params.q);
   const range = one(params.range) || "today";
+  const who = await access();
+  const showInactive = who.role === "admin" && one(params.inactive) === "1";
   const data = await getSchedule({
     storeNumber,
     trainerId,
     month: one(params.month),
     query,
+    showInactive,
   });
   const window = sessionWindow(data.today, range, one(params.from), one(params.to));
   const inWindow = (date: string) => date >= window.start && date <= window.end;
   const current = {
+    inactive: showInactive ? "1" : "",
     store: storeNumber,
     trainer: trainerId,
     month: data.month,
@@ -58,13 +64,16 @@ export default async function SchedulePage({
     <div>
       <PageHeader
         kicker="Agenda"
-        title={store ? storeLabel(store.number) : "All restaurants"}
+        title={store ? storeLabel(store.number) : "All Restaurants"}
         description={
           store
             ? `GM ${store.gmNames.join(", ") || "not listed"}. Sessions are a date and a trainer, the same way the ITS sheet records them.`
             : "Upcoming training dates that are scheduled and still open."
         }
       />
+      <div className="mb-3">
+        <InactiveToggle admin={who.role === "admin"} on={showInactive} path="/schedule" query={current} />
+      </div>
 
       <div className="mb-4 max-w-xs">
         <Suspense fallback={null}>
