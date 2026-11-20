@@ -4,7 +4,7 @@ import { addCatalogModule, addSecondPath, commitImport, createTrainee, deleteTra
 import { parseModuleLinks } from "../src/lib/drive";
 import { spanishTextUpdate } from "../src/lib/translate";
 import { getReports } from "../src/lib/reports";
-import { linkEmployees, syncEmployeeSnapshot } from "../src/lib/employees";
+import { linkEmployees, mapJobTitle, parseRosterCsv, syncEmployeeSnapshot } from "../src/lib/employees";
 import { prisma } from "../src/lib/db";
 import { daysBetween, formatLongDate, parseLooseDate, selectReportStores, sessionWindow } from "../src/lib/format";
 import { addDevelopmentPerson, convertHours, deactivateDevelopmentPerson, developmentHours, formatHourTotal, importDevelopmentRows, mondayOf, parseWeekLabel, preferredWeek, restoreDevelopmentPerson, sortTaskLabels, updateDevelopmentPerson, weekLabel } from "../src/lib/development";
@@ -16,6 +16,13 @@ import { parseDevelopmentReport } from "../src/lib/roster/parse";
 import { csvDevelopmentReportSource } from "../src/lib/roster/source";
 
 async function main() {
+  assert.equal(mapJobTitle("PRIMARY MAIN. PERSON"), "Crew Person");
+  assert.equal(mapJobTitle("BACKUP MAINTENANCE PERSON"), "Crew Person");
+  assert.equal(mapJobTitle("CERT. SWING MGR."), "Cert. Swing Mgr.");
+  assert.equal(mapJobTitle("CREW PERSON"), "Crew Person");
+  const feed = parseRosterCsv("Store,Name,Job Title\n5207,Alex Rivera,PRIMARY MAIN. PERSON\n");
+  assert.equal(feed[0]?.position, "Crew Person");
+  assert.equal(feed[0]?.store, "5207");
   const driveFile = parseModuleLinks("https://drive.google.com/file/d/abc123/view");
   assert.equal(driveFile.files[0]?.embed, "https://drive.google.com/file/d/abc123/preview");
   assert.equal(driveFile.files[0]?.href, "https://drive.google.com/file/d/abc123/view");

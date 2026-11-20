@@ -7,6 +7,42 @@ export function employeeNameKey(name: string) {
   return name.trim().toLowerCase().replace(/[’‘]/g, "'").replace(/\s+/g, " ");
 }
 
+const CREW_TITLES = new Set(["PRIMARY MAIN PERSON", "BACKUP MAINTENANCE PERSON"]);
+
+export function mapJobTitle(raw: string) {
+  const cleaned = raw.trim().replace(/\s+/g, " ");
+  if (!cleaned) return "";
+  const key = cleaned.toUpperCase().replace(/\./g, "").replace(/\s+/g, " ").trim();
+  if (CREW_TITLES.has(key)) return "Crew Person";
+  return cleaned.toLowerCase().replace(/(^|[^a-z])([a-z])/g, (_, lead: string, letter: string) => lead + letter.toUpperCase());
+}
+
+export function parseRosterCsv(text: string): SnapshotPerson[] {
+  const table = parseCsv(text);
+  if (table.length < 2) throw new Error("The roster file needs a header and at least one person.");
+  const headers = table[0].map((header) => header.trim().toLowerCase());
+  const index = (names: string[]) => names.map((name) => headers.indexOf(name)).find((item) => item >= 0) ?? -1;
+  const storeCol = index(["store", "restaurant", "store number"]);
+  const nameCol = index(["name", "employee"]);
+  const jobCol = index(["job title", "position"]);
+  if (storeCol < 0 || nameCol < 0 || jobCol < 0) {
+    throw new Error("The header needs Store, Name, and Job Title.");
+  }
+  return table.slice(1).flatMap((row) => {
+    const store = (row[storeCol] ?? "").trim();
+    const name = (row[nameCol] ?? "").trim();
+    if (!store || !name) return [];
+    return [{ store, name, position: mapJobTitle(row[jobCol] ?? "") }];
+  });
+}
+
+export function rosterCsvBody(text: string, contentType: string) {
+  const type = contentType.toLowerCase();
+  if (type.includes("csv")) return true;
+  const first = text.replace(/^\uFEFF/, "").trimStart().split(/\r?\n/, 1)[0]?.toLowerCase() ?? "";
+  return first.startsWith("store,") && first.includes("name") && (first.includes("job title") || first.includes("position"));
+}
+
 export function visibleLinkedWhere(showInactive: boolean) {
   if (showInactive) return {};
   return { OR: [{ employeeId: null }, { employee: { is: { active: true } } }] };
@@ -37,7 +73,7 @@ export async function syncEmployeeSnapshot(rows: SnapshotPerson[]) {
     const name = row.name.trim().replace(/\s+/g, " ");
     if (!store || name.length < 2) continue;
     const externalId = row.employeeId?.trim() || null;
-    const position = (row.position ?? "").trim().slice(0, 80);
+    const position = mapJobTitle(row.position ?? "").slice(0, 80);
     const people = cache.get(store.id) ?? (await prisma.employee.findMany({ where: { storeId: store.id } }));
     cache.set(store.id, people);
     const match = externalId
@@ -175,14 +211,14 @@ export async function importEmployeeCsv(csv: string) {
   const index = (names: string[]) => names.map((name) => headers.indexOf(name)).find((item) => item >= 0) ?? -1;
   const storeCol = index(["store", "restaurant", "store number"]);
   const nameCol = index(["name", "employee"]);
-  const positionCol = index(["position"]);
+  const positionCol = index(["position", "job title"]);
   const idCol = index(["employee_id", "employee id", "external id"]);
   const activeCol = index(["active"]);
   if (storeCol < 0 || nameCol < 0) throw new Error("The header needs store and name columns.");
   const snapshot = table.slice(1).map((row) => ({
     store: row[storeCol] ?? "",
     name: row[nameCol] ?? "",
-    position: positionCol >= 0 ? row[positionCol] ?? "" : "",
+    position: mapJobTitle(positionCol >= 0 ? row[positionCol] ?? "" : ""),
     employeeId: idCol >= 0 ? row[idCol] ?? "" : "",
     active: activeCol >= 0 ? activeFlag(row[activeCol]) : true,
   }));
