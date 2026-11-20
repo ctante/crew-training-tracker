@@ -8,6 +8,52 @@ export function employeeNameKey(name: string) {
   return name.trim().toLowerCase().replace(/[’‘]/g, "'").replace(/\s+/g, " ");
 }
 
+const NAME_PARTICLES = new Set(["de", "del", "la", "y"]);
+
+function formatNameWord(word: string, isFirst: boolean): string {
+  if (!word) return word;
+  if (word.includes("-")) {
+    return word
+      .split("-")
+      .map((part, index) => formatNameWord(part, isFirst && index === 0))
+      .join("-");
+  }
+  const lower = word.toLowerCase().replace(/[’‘]/g, "'");
+  if (/^(i{1,3}|iv|v|vi{0,3}|ix|x)$/.test(lower)) return lower.toUpperCase();
+  if (lower === "jr" || lower === "jr.") return lower.endsWith(".") ? "Jr." : "Jr";
+  if (lower === "sr" || lower === "sr.") return lower.endsWith(".") ? "Sr." : "Sr";
+  if (!isFirst && NAME_PARTICLES.has(lower)) return lower;
+  if (lower.startsWith("mc") && lower.length > 3) return "Mc" + lower.charAt(2).toUpperCase() + lower.slice(3);
+  if (lower.startsWith("mac") && lower.length > 4 && lower !== "macias") {
+    return "Mac" + lower.charAt(3).toUpperCase() + lower.slice(4);
+  }
+  if (lower.includes("'")) {
+    return lower
+      .split("'")
+      .map((part) => (part ? part.charAt(0).toUpperCase() + part.slice(1) : part))
+      .join("'");
+  }
+  return lower.charAt(0).toUpperCase() + lower.slice(1);
+}
+
+export function titleCasePersonName(raw: string) {
+  const cleaned = raw.trim().replace(/[’‘]/g, "'").replace(/\s+/g, " ");
+  if (!cleaned) return "";
+  return cleaned
+    .split(" ")
+    .map((word, index) => formatNameWord(word, index === 0))
+    .join(" ")
+    .slice(0, 80);
+}
+
+export function chooseDisplayName(rosterName: string, existing?: string) {
+  const titled = titleCasePersonName(rosterName);
+  const current = existing?.trim().replace(/\s+/g, " ") ?? "";
+  const roster = rosterName.trim().replace(/\s+/g, " ");
+  if (current && employeeNameKey(current) === employeeNameKey(roster) && current !== roster) return current.slice(0, 80);
+  return titled;
+}
+
 const CREW_TITLES = new Set(["PRIMARY MAIN PERSON", "BACKUP MAINTENANCE PERSON"]);
 
 export function mapJobTitle(raw: string) {
@@ -144,6 +190,7 @@ export async function syncEmployeeSnapshot(rows: SnapshotPerson[]) {
     if (!store || name.length < 2) continue;
     const externalId = row.employeeId?.trim() || null;
     const position = mapJobTitle(row.position ?? "").slice(0, 80);
+    const storedName = (current?: string) => chooseDisplayName(name, current);
     const people = cache.get(store.id) ?? (await prisma.employee.findMany({ where: { storeId: store.id } }));
     cache.set(store.id, people);
     const match = externalId
@@ -154,7 +201,7 @@ export async function syncEmployeeSnapshot(rows: SnapshotPerson[]) {
       await prisma.employee.update({
         where: { id: match.id },
         data: {
-          name: name.slice(0, 80),
+          name: storedName(match.name),
           position,
           active: true,
           externalId: externalId ?? match.externalId,
@@ -162,16 +209,17 @@ export async function syncEmployeeSnapshot(rows: SnapshotPerson[]) {
           lastSyncedAt: now,
         },
       });
+      const nextName = storedName(match.name);
       const renamed = employeeNameKey(match.name) !== employeeNameKey(name);
       if (renamed) {
         corrected += 1;
-        corrections.push({ store: store.number, kind: "employee", fromName: match.name, toName: name.slice(0, 80), position, note: "" });
+        corrections.push({ store: store.number, kind: "employee", fromName: match.name, toName: nextName, position, note: "" });
       } else if (match.active) updated += 1;
       else reactivated += 1;
       const seen = seenByStore.get(store.id) ?? new Set<string>();
       seen.add(match.id);
       seenByStore.set(store.id, seen);
-      Object.assign(match, { name: name.slice(0, 80), externalId: externalId ?? match.externalId, active: true, source: "qsrsoft" });
+      Object.assign(match, { name: storedName(match.name), externalId: externalId ?? match.externalId, active: true, source: "qsrsoft" });
     } else {
       pending.push({ storeId: store.id, storeNumber: store.number, name: name.slice(0, 80), position, externalId });
     }
@@ -188,10 +236,11 @@ export async function syncEmployeeSnapshot(rows: SnapshotPerson[]) {
     const paired = uniqueNameMatches(rowsForStore, manuals);
     const usedRows = new Set(paired.pairs.map((pair) => pair.left));
     for (const pair of paired.pairs) {
+      const nextName = chooseDisplayName(pair.left.name, pair.right.name);
       await prisma.employee.update({
         where: { id: pair.right.id },
         data: {
-          name: pair.left.name,
+          name: nextName,
           position: pair.left.position,
           active: true,
           externalId: pair.left.externalId ?? pair.right.externalId,
@@ -204,12 +253,12 @@ export async function syncEmployeeSnapshot(rows: SnapshotPerson[]) {
         store: pair.left.storeNumber,
         kind: "employee",
         fromName: pair.right.name,
-        toName: pair.left.name,
+        toName: nextName,
         position: pair.left.position,
         note: "",
       });
       seen.add(pair.right.id);
-      Object.assign(pair.right, { name: pair.left.name, active: true, source: "qsrsoft" });
+      Object.assign(pair.right, { name: nextName, active: true, source: "qsrsoft" });
     }
     for (const skip of paired.ambiguous) {
       ambiguous.push({ store: rowsForStore[0]?.storeNumber ?? "", kind: "employee", name: skip.name, candidates: skip.candidates });
@@ -219,7 +268,7 @@ export async function syncEmployeeSnapshot(rows: SnapshotPerson[]) {
       await prisma.employee.createMany({
         data: creating.map((row) => ({
           storeId,
-          name: row.name,
+          name: titleCasePersonName(row.name),
           position: row.position,
           active: true,
           externalId: row.externalId,
@@ -461,6 +510,7 @@ async function saveEmployeeRows(
     const name = row.name.trim().replace(/\s+/g, " ");
     if (!store || name.length < 2) continue;
     const externalId = row.employeeId.trim() || null;
+    const display = (current?: string) => chooseDisplayName(name, current);
     const people = await prisma.employee.findMany({ where: { storeId: store.id } });
     const match = externalId
       ? people.find((person) => person.externalId === externalId)
@@ -469,7 +519,7 @@ async function saveEmployeeRows(
       await prisma.employee.update({
         where: { id: match.id },
         data: {
-          name: name.slice(0, 80),
+          name: display(match.name),
           position: row.position.trim().slice(0, 80),
           active: row.active,
           externalId: externalId ?? match.externalId,
@@ -481,7 +531,7 @@ async function saveEmployeeRows(
       await prisma.employee.create({
         data: {
           storeId: store.id,
-          name: name.slice(0, 80),
+          name: display(),
           position: row.position.trim().slice(0, 80),
           active: row.active,
           externalId,
@@ -547,6 +597,38 @@ export async function positionChoices() {
 
 export async function recentRosterNotes() {
   return prisma.rosterCorrection.findMany({ orderBy: { createdAt: "desc" }, take: 40 });
+}
+
+export async function normalizeStoredPersonNames() {
+  const examples: { kind: string; from: string; to: string }[] = [];
+  const note = (kind: string, from: string, to: string) => {
+    if (examples.length < 15) examples.push({ kind, from, to });
+  };
+  let employees = 0;
+  let trainees = 0;
+  let trainers = 0;
+  for (const person of await prisma.employee.findMany()) {
+    const next = titleCasePersonName(person.name);
+    if (!next || next === person.name) continue;
+    await prisma.employee.update({ where: { id: person.id }, data: { name: next } });
+    employees += 1;
+    note("employee", person.name, next);
+  }
+  for (const person of await prisma.trainee.findMany()) {
+    const next = titleCasePersonName(person.name);
+    if (!next || next === person.name) continue;
+    await prisma.trainee.update({ where: { id: person.id }, data: { name: next } });
+    trainees += 1;
+    note("trainee", person.name, next);
+  }
+  for (const person of await prisma.staff.findMany()) {
+    const next = titleCasePersonName(person.name);
+    if (!next || next === person.name) continue;
+    await prisma.staff.update({ where: { id: person.id }, data: { name: next } });
+    trainers += 1;
+    note("trainer", person.name, next);
+  }
+  return { employees, trainees, trainers, examples };
 }
 
 export async function listEmployees() {

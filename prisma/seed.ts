@@ -1,6 +1,6 @@
 import { prisma } from "../src/lib/db";
 import { importBundledDevelopmentSheet } from "../src/lib/development";
-import { linkEmployees } from "../src/lib/employees";
+import { linkEmployees, normalizeStoredPersonNames } from "../src/lib/employees";
 import { seedCatalog, seedDatabase, seedSampleContent } from "../src/lib/seed-run";
 
 async function main() {
@@ -22,6 +22,11 @@ async function main() {
   }
   if (process.env.VERCEL_GIT_COMMIT_REF === "beta") {
     await importBundledDevelopmentSheet();
+    const names = await normalizeStoredPersonNames();
+    console.log(`Person names titled: employees ${names.employees}, trainees ${names.trainees}, trainers ${names.trainers}.`);
+    for (const example of names.examples.slice(0, 10)) {
+      console.log(`Name case ${example.kind}: ${example.from} -> ${example.to}`);
+    }
   }
   const linked = await linkEmployees();
   console.log(
