@@ -48,8 +48,8 @@ const tiles = [
   },
   {
     href: "/admin/development",
-    title: "Training needed",
-    text: "The dropdown of development work, such as Inventory or ITS Training.",
+    title: "Development Activity",
+    text: "The dropdown of development work, such as Inventory or ITS Training. Actividad de desarrollo.",
     show: "admin" as const,
   },
 ];

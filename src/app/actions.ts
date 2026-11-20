@@ -35,6 +35,7 @@ import { effectivePermissions, isPermission, isUserRole, type Permission, type U
 import {
   addDevelopmentPerson,
   addDevelopmentTask,
+  addDevelopmentWork,
   copyDevelopmentWeek,
   deactivateDevelopmentPerson,
   importDevelopmentRows,
@@ -349,12 +350,36 @@ export async function commitImportAction(csv: string, single: SingleContext | nu
 }
 
 function developmentReturn(formData: FormData, extra: Record<string, string>) {
+  if (String(formData.get("returnTo") || "") === "roster") {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(extra)) {
+      if (value) params.set(key, value);
+    }
+    const text = params.toString();
+    return text ? `/admin/roster?${text}` : "/admin/roster";
+  }
   return developmentPath(
     String(formData.get("week") || ""),
     String(formData.get("returnStore") || ""),
     String(formData.get("returnPosition") || ""),
     extra,
   );
+}
+
+export async function addDevelopmentWorkAction(formData: FormData) {
+  try {
+    await addDevelopmentWork({
+      staffId: String(formData.get("staffId") || ""),
+      weekStart: String(formData.get("week") || ""),
+      hours: String(formData.get("hours") || ""),
+      trainingNeeded: String(formData.get("trainingNeeded") || ""),
+      comments: String(formData.get("comments") || ""),
+    });
+  } catch (error) {
+    redirect(developmentReturn(formData, { error: message(error) }));
+  }
+  refreshAll();
+  redirect(developmentReturn(formData, { saved: "work" }));
 }
 
 export async function addDevelopmentPersonAction(formData: FormData) {
@@ -368,7 +393,7 @@ export async function addDevelopmentPersonAction(formData: FormData) {
     redirect(developmentReturn(formData, { error: message(error) }));
   }
   refreshAll();
-  redirect(developmentReturn(formData, { saved: "person" }));
+  redirect(developmentReturn(formData, { saved: "person", people: "all" }));
 }
 
 export async function updateDevelopmentPersonAction(formData: FormData) {

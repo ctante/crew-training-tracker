@@ -6,7 +6,7 @@ import { spanishTextUpdate } from "../src/lib/translate";
 import { getReports } from "../src/lib/reports";
 import { prisma } from "../src/lib/db";
 import { daysBetween, formatLongDate, parseLooseDate, selectReportStores, sessionWindow } from "../src/lib/format";
-import { addDevelopmentPerson, convertHours, deactivateDevelopmentPerson, developmentHours, formatHourTotal, importDevelopmentRows, mondayOf, parseWeekLabel, restoreDevelopmentPerson, updateDevelopmentPerson, weekLabel } from "../src/lib/development";
+import { addDevelopmentPerson, convertHours, deactivateDevelopmentPerson, developmentHours, formatHourTotal, importDevelopmentRows, mondayOf, parseWeekLabel, preferredWeek, restoreDevelopmentPerson, sortTaskLabels, updateDevelopmentPerson, weekLabel } from "../src/lib/development";
 import { CODE_ROLE_DEFAULTS, effectivePermissions, overridesFor, roleDefaults } from "../src/lib/permissions";
 import { saveAppUser } from "../src/lib/users";
 import { loadModuleSeeds } from "../src/lib/module-csv";
@@ -810,6 +810,16 @@ Zed Unqualified,05207,Shift Manager,No
   assert.equal(convertHours("0.5").hours, "0.5");
   assert.equal(convertHours("11").converted, false);
   assert.equal(convertHours("Meet Rosa").converted, false);
+  assert.equal(preferredWeek("2026-11-16", ["2026-11-30", "2026-11-23"]), "2026-11-23");
+  assert.equal(preferredWeek("2026-11-23", ["2026-11-23", "2026-11-30"]), "2026-11-23");
+  assert.equal(preferredWeek("2026-12-07", ["2026-11-23", "2026-11-30"]), "2026-11-30");
+  assert.equal(preferredWeek("2026-11-16", []), "2026-11-16");
+  assert.deepEqual(sortTaskLabels(["Verification by Supervisor", "inventory", "Cash Audit", "ITS Training"]), [
+    "Cash Audit",
+    "inventory",
+    "ITS Training",
+    "Verification by Supervisor",
+  ]);
   assert.equal(developmentHours("2+2"), 4);
   assert.equal(developmentHours("3"), 3);
   assert.equal(formatHourTotal(4), "4");

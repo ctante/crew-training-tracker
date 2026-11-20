@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { copyDevelopmentAction, importDevelopmentAction } from "@/app/actions";
 import { DevelopmentBoard } from "@/components/development-board";
 import { PrintButton } from "@/components/print-button";
@@ -17,12 +18,17 @@ export default async function DevelopmentPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const params = await searchParams;
+  const requestedWeek = one(params.week);
   const data = await getDevelopment({
-    week: one(params.week),
+    week: requestedWeek,
     store: one(params.store),
     position: one(params.position),
   });
-  const query = { week: data.weekStart, store: data.store, position: data.position };
+  if (!requestedWeek && data.weekStart !== data.current) {
+    redirect(withParams("/development", { store: data.store, position: data.position }, { week: data.weekStart }));
+  }
+  const showEveryone = one(params.people) === "all";
+  const query = { week: data.weekStart, store: data.store, position: data.position, people: showEveryone ? "all" : "" };
   const csv = new URLSearchParams();
   csv.set("week", data.weekStart);
   if (data.store) csv.set("store", data.store);
@@ -33,7 +39,7 @@ export default async function DevelopmentPage({
       <PageHeader
         kicker="Development"
         title={data.label}
-        description="Monday through Sunday. This view lists people who have hours, training needed, or comments. Edit shows the whole roster. Add person puts a new employee on the roster."
+        description="Monday through Sunday. This view lists people who have work in the selected week. If this week is empty, it opens the latest week that has work. Edit lists the whole roster. + Add person creates an employee. Add work records hours or a development activity for someone already on the roster."
         actions={
           <div className="flex flex-wrap gap-2 print:hidden">
             <PrintButton />
@@ -47,8 +53,10 @@ export default async function DevelopmentPage({
         error={one(params.error)}
         notice={
           one(params.saved) === "person"
-            ? "Person saved."
-            : one(params.saved) === "removed"
+            ? "Person added to the roster."
+            : one(params.saved) === "work"
+              ? "Work saved for this week."
+              : one(params.saved) === "removed"
               ? "Person removed from the roster. Past weeks stay."
               : one(params.saved)
                 ? "Development week saved."
@@ -121,12 +129,15 @@ export default async function DevelopmentPage({
         store={data.store}
         position={data.position}
         storeChoices={data.storeChoices}
+        showEveryone={showEveryone}
+        everyoneHref={withParams("/development", query, { people: "all" })}
+        workHref={withParams("/development", query, { people: "" })}
       />
       {data.canEdit ? (
         <details className="mt-6 rounded-3xl border border-line bg-card p-4 print:hidden">
           <summary className="cursor-pointer font-semibold">Import a development CSV</summary>
           <p className="mt-2 text-sm text-ink/70">
-            Columns: Employee, Restaurant, Position, Training Hours Needed, Training Needed, Comments. This writes the week shown above.
+            Columns: Employee, Restaurant, Position, Training Hours Needed, Development Activity, Comments. This writes the week shown above.
             Names must already be on that restaurant’s roster. Use this when promoting a sheet onto the live site later.
           </p>
           <form action={importDevelopmentAction} className="mt-3 flex flex-wrap items-end gap-3">
