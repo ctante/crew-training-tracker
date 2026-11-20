@@ -1,4 +1,5 @@
 import { prisma } from "../src/lib/db";
+import { importBundledDevelopmentSheet } from "../src/lib/development";
 import { seedCatalog, seedDatabase, seedSampleContent } from "../src/lib/seed-run";
 
 async function main() {
@@ -17,6 +18,9 @@ async function main() {
     }
   } else {
     console.log("Sample trainees were not seeded. Set SEED_SAMPLE_DATA=true to add them to an empty database.");
+  }
+  if (process.env.VERCEL_GIT_COMMIT_REF === "beta") {
+    await importBundledDevelopmentSheet();
   }
   const paths = await prisma.trainee.groupBy({ by: ["path"], _count: { _all: true } });
   const summary = paths.map((row) => `${row.path ?? "unset"}=${row._count._all}`).join(", ");

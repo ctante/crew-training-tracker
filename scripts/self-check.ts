@@ -6,6 +6,7 @@ import { spanishTextUpdate } from "../src/lib/translate";
 import { getReports } from "../src/lib/reports";
 import { prisma } from "../src/lib/db";
 import { daysBetween, formatLongDate, parseLooseDate, selectReportStores, sessionWindow } from "../src/lib/format";
+import { developmentHours, formatHourTotal, importDevelopmentRows, mondayOf, parseWeekLabel, weekLabel } from "../src/lib/development";
 import { CODE_ROLE_DEFAULTS, effectivePermissions, overridesFor, roleDefaults } from "../src/lib/permissions";
 import { saveAppUser } from "../src/lib/users";
 import { loadModuleSeeds } from "../src/lib/module-csv";
@@ -798,6 +799,43 @@ Zed Unqualified,05207,Shift Manager,No
     for (const row of sortBefore) {
       await prisma.module.update({ where: { id: row.id }, data: { sortOrder: row.sortOrder } });
     }
+  }
+
+  assert.equal(mondayOf("2026-11-20"), "2026-11-16");
+  assert.equal(weekLabel("2026-11-23"), "Week of 11/23-11/29");
+  assert.equal(weekLabel("2026-11-30"), "Week of 11/30-12/06");
+  assert.equal(parseWeekLabel("Week of 11/30-12/06"), "2026-11-30");
+  assert.equal(developmentHours("2+2"), 4);
+  assert.equal(developmentHours("3"), 3);
+  assert.equal(formatHourTotal(4), "4");
+  assert.equal(roleDefaults("USER").view_development, false);
+  assert.equal(roleDefaults("MANAGER").view_development, true);
+  assert.equal(roleDefaults("MANAGER").edit_development, false);
+  assert.equal(roleDefaults("ADMIN").edit_development, true);
+  const developmentStore = await prisma.store.findUniqueOrThrow({ where: { number: "05207" } });
+  const developmentPerson = await prisma.staff.create({
+    data: { storeId: developmentStore.id, name: "Development Check", position: "Shift Mgr", qualified: true, isTrainer: true },
+  });
+  try {
+    const first = await importDevelopmentRows([
+      { storeNumber: "05207", name: "Development Check", hours: "2+2", comments: "Inventory", weekStart: "2026-11-23" },
+    ]);
+    assert.equal(first.entries, 1);
+    assert.equal(first.unmatched.length, 0);
+    const again = await importDevelopmentRows([
+      { storeNumber: "05207", name: "Development Check", hours: "2+2", comments: "Inventory", weekStart: "2026-11-23" },
+    ]);
+    assert.equal(again.entries, 1);
+    assert.equal(await prisma.developmentEntry.count({ where: { staffId: developmentPerson.id } }), 1);
+    const missed = await importDevelopmentRows([
+      { storeNumber: "05207", name: "Nobody Development", hours: "1", comments: "Nope", weekStart: "2026-11-23" },
+    ]);
+    assert.equal(missed.entries, 0);
+    assert.equal(missed.unmatched[0]?.name, "Nobody Development");
+  } finally {
+    await prisma.developmentEntry.deleteMany({ where: { staffId: developmentPerson.id } });
+    await prisma.developmentWeek.deleteMany({ where: { storeId: developmentStore.id, weekStart: "2026-11-23" } });
+    await prisma.staff.delete({ where: { id: developmentPerson.id } });
   }
 
   const paths = await prisma.trainee.groupBy({ by: ["path"], _count: { _all: true } });
