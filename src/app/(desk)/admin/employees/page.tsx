@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { addEmployeeAction, deactivateEmployeeAction, importEmployeesAction, updateEmployeeAction } from "@/app/actions";
+import { addEmployeeAction, deactivateEmployeeAction, dismissRosterCorrectionsAction, importEmployeesAction, updateEmployeeAction } from "@/app/actions";
 import { AdminNav } from "@/components/admin-nav";
 import { CollapsibleSections } from "@/components/collapsible-sections";
 import { ConfirmSubmit } from "@/components/confirm-submit";
@@ -146,7 +146,18 @@ export default async function EmployeesPage({
       </details>
       {notes.length ? (
         <section className="mb-6 rounded-3xl border border-line bg-card p-4">
-          <h2 className="font-display text-2xl">Recent Roster Corrections</h2>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="font-display text-2xl">Recent Roster Corrections</h2>
+            <form action={dismissRosterCorrectionsAction}>
+              <input type="hidden" name="returnStore" value={storeFilter} />
+              <input type="hidden" name="returnPosition" value={positionFilter} />
+              <input type="hidden" name="returnQ" value={one(params.q)} />
+              {showInactive ? <input type="hidden" name="inactive" value="1" /> : null}
+              <button className={ghostButton} type="submit">
+                Dismiss
+              </button>
+            </form>
+          </div>
           <ul className="mt-2 space-y-1 text-sm">
             {notes.map((note) => (
               <li key={note.id}>

@@ -15,7 +15,7 @@ import {
 import { SECTIONS, blockStart, canonicalTrainerPosition, compareTrainers, moduleKind, type SectionId } from "./constants";
 import { parseCsv, toCsv } from "./csv";
 import { prisma } from "./db";
-import { linkEmployees, visibleLinkedWhere } from "./employees";
+import { linkEmployees, linkedPosition, visibleLinkedWhere } from "./employees";
 import { hashPassword, verifyPassword } from "./passwords";
 import { matchSharedStorePassword, upsertSharedStoreUser } from "./users";
 import { safeEqual } from "./session";
@@ -82,6 +82,7 @@ type TraineeRecord = {
   status: string;
   isSample: boolean;
   store: { id: string; number: string; name: string };
+  employee?: { position: string } | null;
   modules: {
     id: string;
     scheduledDate: string | null;
@@ -113,7 +114,8 @@ type TraineeRecord = {
 
 const traineeInclude = {
   store: true,
-  modules: { include: { module: true, trainer: true } },
+  employee: { select: { position: true } },
+  modules: { include: { module: true, trainer: { include: { employee: { select: { position: true } } } } } },
 } as const;
 
 function asSection(value: string): SectionId {
@@ -182,7 +184,7 @@ function toSummary(trainee: TraineeRecord, today: string): TraineeSummary {
     storeNumber: trainee.store.number,
     storeName: trainee.store.name,
     language: asLanguage(trainee.language),
-    position: trainee.position,
+    position: linkedPosition(trainee),
     path: first,
     paths,
     secondPath: parseTrainingPath(trainee.secondPath),
@@ -402,6 +404,7 @@ export async function getTrainee(id: string, scope?: Access, showInactive = fals
     }),
     prisma.staff.findMany({
       where: { active: true, qualified: true, ...visibleLinkedWhere(showInactive), ...(storesWhere ? { store: storesWhere } : {}) },
+      include: { employee: { select: { position: true } } },
     }),
   ]);
   if (!trainee) return null;
@@ -416,7 +419,7 @@ export async function getTrainee(id: string, scope?: Access, showInactive = fals
     .map((person) => ({
       id: person.id,
       name: person.name,
-      position: person.position,
+      position: linkedPosition(person),
       isGm: person.isGm,
     }))
     .sort(compareTrainers);
@@ -719,7 +722,7 @@ export async function getSchedule(filters: { storeNumber?: string; trainerId?: s
         ...visibleLinkedWhere(Boolean(filters.showInactive)),
         ...(storeWhere ? { store: storeWhere } : {}),
       },
-      include: { store: true },
+      include: { store: true, employee: { select: { position: true } } },
     }),
     prisma.traineeModule.findMany({
       where: {
@@ -809,7 +812,7 @@ export async function getSchedule(filters: { storeNumber?: string; trainerId?: s
       .map((person) => ({
         id: person.id,
         name: person.name,
-        position: person.position,
+        position: linkedPosition(person),
         isGm: person.isGm,
         storeNumber: person.store.number,
         storeName: person.store.name,
@@ -2182,7 +2185,7 @@ export async function applyRosterSync(entries: RosterEntry[]) {
 export async function getRosterPage() {
   assertPermission(await access(), "roster_import");
   const [stores, sync] = await Promise.all([
-    prisma.store.findMany({ orderBy: { number: "asc" }, include: { staff: true } }),
+    prisma.store.findMany({ orderBy: { number: "asc" }, include: { staff: { include: { employee: { select: { position: true } } } } } }),
     prisma.rosterSync.findFirst({ orderBy: { createdAt: "desc" } }),
   ]);
   return {
@@ -2195,7 +2198,7 @@ export async function getRosterPage() {
         .map((person) => ({
           id: person.id,
           name: person.name,
-          position: person.position,
+          position: linkedPosition(person),
           isGm: person.isGm,
           isSample: person.isSample,
           active: true,
@@ -2206,7 +2209,7 @@ export async function getRosterPage() {
         .map((person) => ({
           id: person.id,
           name: person.name,
-          position: person.position,
+          position: linkedPosition(person),
           isGm: person.isGm,
           isSample: person.isSample,
           active: false,

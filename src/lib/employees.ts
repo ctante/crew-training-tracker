@@ -299,6 +299,7 @@ export async function syncEmployeeSnapshot(rows: SnapshotPerson[]) {
   corrections.push(...linked.corrections);
   ambiguous.push(...linked.ambiguous);
   await linkEmployees();
+  await refreshRosterPositions();
   if (corrections.length || ambiguous.length) {
     await prisma.rosterCorrection.createMany({
       data: [
@@ -595,8 +596,62 @@ export async function positionChoices() {
   );
 }
 
+export async function refreshRosterPositions() {
+  const examples: { kind: string; name: string; from: string; to: string }[] = [];
+  const note = (kind: string, name: string, from: string, to: string) => {
+    if (examples.length < 8) examples.push({ kind, name, from, to });
+  };
+  let employees = 0;
+  let trainees = 0;
+  let trainers = 0;
+  for (const person of await prisma.employee.findMany()) {
+    const next = mapJobTitle(person.position);
+    if (!next || next === person.position) continue;
+    await prisma.employee.update({ where: { id: person.id }, data: { position: next } });
+    employees += 1;
+    note("employee", person.name, person.position, next);
+  }
+  const traineeRows = await prisma.trainee.findMany({ where: { employeeId: { not: null } }, include: { employee: true } });
+  for (const person of traineeRows) {
+    const next = person.employee?.position ?? "";
+    if (!next || next === person.position) continue;
+    await prisma.trainee.update({ where: { id: person.id }, data: { position: next } });
+    trainees += 1;
+    note("trainee", person.name, person.position, next);
+  }
+  const trainerRows = await prisma.staff.findMany({ where: { employeeId: { not: null } }, include: { employee: true } });
+  for (const person of trainerRows) {
+    const next = person.employee?.position ?? "";
+    if (!next || next === person.position) continue;
+    await prisma.staff.update({ where: { id: person.id }, data: { position: next } });
+    trainers += 1;
+    note("trainer", person.name, person.position, next);
+  }
+  return { employees, trainees, trainers, changed: employees + trainees + trainers, examples };
+}
+
+export function linkedPosition(person: { position: string; employee?: { position: string } | null }) {
+  return person.employee?.position?.trim() || person.position;
+}
+
 export async function recentRosterNotes() {
-  return prisma.rosterCorrection.findMany({ orderBy: { createdAt: "desc" }, take: 40 });
+  const dismissal = await prisma.rosterCorrectionDismissal.findUnique({ where: { id: "roster" } });
+  return prisma.rosterCorrection.findMany({
+    where: dismissal ? { createdAt: { gt: dismissal.dismissedAt } } : undefined,
+    orderBy: { createdAt: "desc" },
+    take: 40,
+  });
+}
+
+export async function dismissRosterCorrections() {
+  const who = await access();
+  if (who.role !== "admin") throw new Error("Only an admin can dismiss roster corrections.");
+  const dismissedAt = new Date();
+  await prisma.rosterCorrectionDismissal.upsert({
+    where: { id: "roster" },
+    create: { id: "roster", dismissedAt },
+    update: { dismissedAt },
+  });
 }
 
 export async function normalizeStoredPersonNames() {

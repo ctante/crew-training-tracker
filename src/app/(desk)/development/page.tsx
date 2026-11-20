@@ -5,7 +5,6 @@ import { DevelopmentBoard } from "@/components/development-board";
 import { InactiveToggle } from "@/components/inactive-toggle";
 import { PrintButton } from "@/components/print-button";
 import { Flash, PageHeader, fieldClass, ghostButton, primaryButton } from "@/components/ui";
-import { TRAINER_POSITION_ORDER } from "@/lib/constants";
 import { access } from "@/lib/access";
 import { getDevelopment } from "@/lib/development";
 import { positionChoices } from "@/lib/employees";
@@ -105,7 +104,7 @@ export default async function DevelopmentPage({
           Position
           <select className={`${fieldClass} mt-1`} name="position" defaultValue={data.position || "all"}>
             <option value="all">All positions</option>
-            {TRAINER_POSITION_ORDER.map((position) => (
+            {data.positionOptions.map((position) => (
               <option key={position} value={position}>
                 {position}
               </option>
