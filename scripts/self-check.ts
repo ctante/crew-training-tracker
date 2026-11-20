@@ -34,6 +34,10 @@ async function main() {
   assert.equal(chooseDisplayName("Noris Cruz rodriguez", "Noris Cruz Rodriguez"), "Noris Cruz Rodriguez");
   assert.equal(chooseDisplayName("Noris Cruz rodriguez", "Noris Cruz rodriguez"), "Noris Cruz Rodriguez");
   const feed = parseRosterCsv("Store,Name,Job Title\n5207,Alex Rivera,PRIMARY MAIN. PERSON\n");
+  const qsr = parseRosterCsv("Store #,First Name,Last Name,Primary Job Title Code Description\n7276,Alex,Rivera,BACKUP MAINTENANCE PERSON\n");
+  assert.equal(qsr[0]?.name, "Alex Rivera");
+  assert.equal(qsr[0]?.position, "Crew Person");
+  assert.throws(() => parseRosterCsv("Store,Name\n5207,Alex Rivera\n"), /position column/);
   assert.equal(feed[0]?.position, "Crew Person");
   assert.equal(feed[0]?.store, "5207");
   assert.equal(namesMatch("José García", "Jose Garcia"), true);
