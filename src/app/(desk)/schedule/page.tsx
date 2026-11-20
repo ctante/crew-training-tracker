@@ -55,8 +55,13 @@ export default async function SchedulePage({
   const overdue = data.sessions.filter((session) => session.overdue);
   const upcoming = data.sessions.filter((session) => inWindow(session.date));
   const doneInRange = data.done.filter((session) => inWindow(session.date));
-  const counts = new Map<string, number>();
-  for (const session of monthSessions) counts.set(session.date, (counts.get(session.date) ?? 0) + 1);
+  const peopleByDay = new Map<string, Set<string>>();
+  for (const session of monthSessions) {
+    const people = peopleByDay.get(session.date) ?? new Set<string>();
+    people.add(session.traineeId);
+    peopleByDay.set(session.date, people);
+  }
+  const counts = new Map([...peopleByDay].map(([date, people]) => [date, people.size]));
   const cells = monthGrid(data.month);
   const store = data.locked ? data.stores[0] : data.stores.find((item) => item.number === storeNumber);
 
