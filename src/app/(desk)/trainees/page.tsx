@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import { TraineeSearch } from "@/components/trainee-search";
+import { CollapsibleSections } from "@/components/collapsible-sections";
 import { Flag, PageHeader } from "@/components/ui";
 import { languageName } from "@/lib/constants";
 import { getDashboard } from "@/lib/data";
@@ -72,19 +73,19 @@ export default async function TraineesPage({
           </Link>
         ))}
       </div>
-      <div className="space-y-6">
-        {groups.map(({ store, rows }) => (
-          <section key={store.id}>
-            <h2 className="font-display text-2xl">
-              {storeLabel(store.number)}
-              <span className="ml-2 text-base text-ink/50">{rows.length}</span>
-            </h2>
-            {store.gmNames.length > 0 ? (
-              <p className="text-sm text-ink/60">GM {store.gmNames.join(", ")}</p>
-            ) : (
-              <p className="text-sm text-ink/60">No GM listed yet.</p>
-            )}
-            <ul className="mt-2 divide-y divide-line overflow-hidden rounded-3xl border border-line bg-card">
+      <CollapsibleSections
+        sections={groups.map(({ store, rows }) => ({
+          id: store.id,
+          title: storeLabel(store.number),
+          count: `${rows.length} trainee${rows.length === 1 ? "" : "s"}`,
+          body: (
+            <>
+              {store.gmNames.length > 0 ? (
+                <p className="mb-2 text-sm text-ink/60">GM {store.gmNames.join(", ")}</p>
+              ) : (
+                <p className="mb-2 text-sm text-ink/60">No GM listed yet.</p>
+              )}
+              <ul className="divide-y divide-line overflow-hidden rounded-2xl border border-line">
               {rows.length === 0 ? (
                 <li className="px-4 py-3 text-sm text-ink/60">No trainees at this restaurant.</li>
               ) : (
@@ -107,9 +108,10 @@ export default async function TraineesPage({
                 ))
               )}
             </ul>
-          </section>
-        ))}
-      </div>
+            </>
+          ),
+        }))}
+      />
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { CollapsibleSections } from "@/components/collapsible-sections";
 import { DateRangeFilters } from "@/components/date-range-filters";
 import { StoreMultiSelect } from "@/components/store-multi-select";
 import { PageHeader, ghostButton } from "@/components/ui";
@@ -209,17 +210,19 @@ function renderReport(report: ReportKind, data: Awaited<ReturnType<typeof getRep
 function ModuleReport({ rows }: { rows: Awaited<ReturnType<typeof getReports>>["moduleRows"] }) {
   const sections = ["ORIENTATION", "FOUNDATION", "SERVICE", "PRODUCTION"] as const;
   return (
-    <div className="space-y-6">
-      {sections.map((section) => {
+    <CollapsibleSections
+      sections={sections.map((section) => {
         const items = rows.filter((row) => row.section === section);
         const title = items[0]?.sectionTitle ?? section;
-        return (
-          <section key={section}>
-            <h2 className="font-display text-2xl">{title}</h2>
-            {items.length === 0 ? (
-              <p className="mt-2 text-sm text-ink/60">No modules in this section yet.</p>
+        return {
+          id: section,
+          title,
+          count: `${items.length} module${items.length === 1 ? "" : "s"}`,
+          body:
+            items.length === 0 ? (
+              <p className="text-sm text-ink/60">No modules in this section yet.</p>
             ) : (
-              <div className="mt-2 space-y-2">
+              <div className="space-y-2">
                 {items.map((row) => (
                   <details key={`${row.section}-${row.sortOrder}`} className="rounded-3xl border border-line bg-card p-4">
                     <summary className="cursor-pointer">
@@ -235,11 +238,10 @@ function ModuleReport({ rows }: { rows: Awaited<ReturnType<typeof getReports>>["
                   </details>
                 ))}
               </div>
-            )}
-          </section>
-        );
+            ),
+        };
       })}
-    </div>
+    />
   );
 }
 

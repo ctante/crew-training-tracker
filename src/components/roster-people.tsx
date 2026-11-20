@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { deactivateDevelopmentPersonAction, restoreDevelopmentPersonAction } from "@/app/actions";
+import { CollapsibleSections } from "@/components/collapsible-sections";
 import { ghostButton, primaryButton } from "@/components/ui";
 import { groupByTrainerPosition } from "@/lib/constants";
 import { storeLabel } from "@/lib/format";
@@ -31,18 +32,19 @@ export function RosterPeople({
           {showRemoved ? "Hide removed" : "Show removed"}
         </button>
       </div>
-      <div className="space-y-5">
-        {stores.map((store) => {
+      <CollapsibleSections
+        sections={stores.map((store) => {
           const people = showRemoved ? [...store.trainers, ...store.removed] : store.trainers;
-          return (
-            <section key={store.id} className="rounded-3xl border border-line bg-card p-4">
-              <h2 className="font-display text-2xl">{storeLabel(store.number)}</h2>
-              <p className="text-sm text-ink/60">
-                {store.trainers.length} qualified
-                {showRemoved ? ` · ${store.removed.length} removed` : ""}
-              </p>
-              {people.length === 0 ? (
-                <p className="mt-2 text-sm text-ink/60">No qualified trainers yet.</p>
+          const count = showRemoved
+            ? `${store.trainers.length} qualified · ${store.removed.length} removed`
+            : `${store.trainers.length} qualified`;
+          return {
+            id: store.id,
+            title: storeLabel(store.number),
+            count,
+            body:
+              people.length === 0 ? (
+                <p className="text-sm text-ink/60">No qualified trainers yet.</p>
               ) : (
                 groupByTrainerPosition(people).map((group) => (
                   <div key={group.position} className="mt-3">
@@ -86,11 +88,10 @@ export function RosterPeople({
                     </ul>
                   </div>
                 ))
-              )}
-            </section>
-          );
+              ),
+          };
         })}
-      </div>
+      />
     </div>
   );
 }

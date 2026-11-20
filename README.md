@@ -92,6 +92,10 @@ A single trainee tab exports as `Module, Time, Videos, Credit, Date, Trainer, Co
 
 The all-restaurant export adds store, trainee, language, position, start date, status, section, completed date, and notes. Duplicate module names (Fries, Hashbrowns, the assembly rows) match on name plus time.
 
+## Conventions
+
+Grouped lists and long lists start collapsed. Each header shows a count. Expand all and Collapse all sit above the list. Print still shows the contents. New grouped lists follow the same pattern.
+
 ## Assumptions
 
 - All 36 rows are one path. The sheet does not mark any row optional.
