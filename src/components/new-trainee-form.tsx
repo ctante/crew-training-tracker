@@ -4,14 +4,17 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createTraineeAction } from "@/app/actions";
 import { EmployeeNameField } from "@/components/employee-name-field";
+import { PositionSelect } from "@/components/position-select";
 import { fieldClass, primaryButton } from "@/components/ui";
 
 export function NewTraineeForm({
   stores,
   today,
+  positions,
 }: {
   stores: { id: string; number: string; name: string }[];
   today: string;
+  positions: string[];
 }) {
   const router = useRouter();
   const [error, setError] = useState("");
@@ -30,7 +33,7 @@ export function NewTraineeForm({
             storeId: String(form.get("storeId") || ""),
             startDate: String(form.get("startDate") || ""),
             language: String(form.get("language") || ""),
-            position: "",
+            position: String(form.get("position") || ""),
             path: String(form.get("path") || ""),
           });
           if ("error" in result && result.error) {
@@ -51,6 +54,10 @@ export function NewTraineeForm({
             </option>
           ))}
         </select>
+      </label>
+      <label className="text-sm font-semibold">
+        Position
+        <PositionSelect name="position" positions={positions} required />
       </label>
       <label className="text-sm font-semibold">
         Start date

@@ -4,7 +4,7 @@ import { addCatalogModule, addSecondPath, commitImport, createTrainee, deleteTra
 import { parseModuleLinks } from "../src/lib/drive";
 import { spanishTextUpdate } from "../src/lib/translate";
 import { getReports } from "../src/lib/reports";
-import { linkEmployees, mapJobTitle, parseRosterCsv, syncEmployeeSnapshot } from "../src/lib/employees";
+import { linkEmployees, mapJobTitle, namesMatch, parseRosterCsv, syncEmployeeSnapshot, uniqueNameMatches } from "../src/lib/employees";
 import { prisma } from "../src/lib/db";
 import { daysBetween, formatLongDate, parseLooseDate, selectReportStores, sessionWindow } from "../src/lib/format";
 import { addDevelopmentPerson, convertHours, deactivateDevelopmentPerson, developmentHours, formatHourTotal, importDevelopmentRows, mondayOf, parseWeekLabel, preferredWeek, restoreDevelopmentPerson, sortTaskLabels, updateDevelopmentPerson, weekLabel } from "../src/lib/development";
@@ -23,6 +23,17 @@ async function main() {
   const feed = parseRosterCsv("Store,Name,Job Title\n5207,Alex Rivera,PRIMARY MAIN. PERSON\n");
   assert.equal(feed[0]?.position, "Crew Person");
   assert.equal(feed[0]?.store, "5207");
+  assert.equal(namesMatch("José García", "Jose Garcia"), true);
+  assert.equal(namesMatch("John Smith", "John Q Smith"), true);
+  assert.equal(namesMatch("Jon Smith", "Jonathan Smith"), true);
+  assert.equal(namesMatch("John Smith", "Jane Smith"), false);
+  const paired = uniqueNameMatches(
+    [{ name: "Jon Smith" }, { name: "Pat Lee" }],
+    [{ name: "Jonathan Smith" }, { name: "Patrick Lee" }, { name: "Patricia Lee" }],
+  );
+  assert.equal(paired.pairs.length, 1);
+  assert.equal(paired.pairs[0]?.right.name, "Jonathan Smith");
+  assert.equal(paired.ambiguous.some((row) => row.name === "Pat Lee"), true);
   const driveFile = parseModuleLinks("https://drive.google.com/file/d/abc123/view");
   assert.equal(driveFile.files[0]?.embed, "https://drive.google.com/file/d/abc123/preview");
   assert.equal(driveFile.files[0]?.href, "https://drive.google.com/file/d/abc123/view");

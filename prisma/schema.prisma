@@ -8,6 +8,19 @@ datasource db {
   directUrl = env("DATABASE_URL_UNPOOLED")
 }
 
+model RosterCorrection {
+  id          String   @id @default(cuid())
+  storeNumber String
+  kind        String
+  fromName    String
+  toName      String
+  position    String   @default("")
+  note        String   @default("")
+  createdAt   DateTime @default(now())
+
+  @@index([createdAt])
+}
+
 model RosterSync {
   id           String   @id @default(cuid())
   source       String

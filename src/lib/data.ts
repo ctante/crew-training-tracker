@@ -471,7 +471,7 @@ export async function createTrainee(input: {
 
 export async function updateTrainee(
   id: string,
-  input: { name: string; storeId: string; startDate: string; status: string; path: string },
+  input: { name: string; storeId: string; startDate: string; status: string; path: string; position?: string },
 ) {
   const name = input.name.trim();
   if (name.length < 2) throw new Error("Enter the trainee name.");
@@ -519,6 +519,7 @@ export async function updateTrainee(
       startDate: input.startDate,
       status: input.status,
       path,
+      ...(input.position !== undefined ? { position: input.position.trim().slice(0, 80) } : {}),
     },
   });
   if (current.storeId !== store.id) {

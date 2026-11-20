@@ -2,12 +2,14 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { addDevelopmentPersonAction } from "@/app/actions";
 import { EmployeeNameField } from "@/components/employee-name-field";
+import { PositionSelect } from "@/components/position-select";
 import { AdminNav } from "@/components/admin-nav";
 import { RosterPeople } from "@/components/roster-people";
 import { Flash, PageHeader, fieldClass, ghostButton, primaryButton } from "@/components/ui";
 import { DEVELOPMENT_POSITIONS, TRAINER_MANAGER_LABEL, TRAINER_POSITION_ORDER, canonicalTrainerPosition } from "@/lib/constants";
 import { access, allows, seesStoreId } from "@/lib/access";
 import { getRosterPage } from "@/lib/data";
+import { positionChoices } from "@/lib/employees";
 import { one } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -22,7 +24,7 @@ export default async function RosterPage({
   const params = await searchParams;
   const who = await access();
   if (!allows(who, "roster_import")) redirect("/");
-  const roster = await getRosterPage();
+  const [roster, positions] = await Promise.all([getRosterPage(), positionChoices()]);
   const canManage = allows(who, "edit_development") && allows(who, "roster_import");
   const storeChoices = roster.stores.filter((store) => seesStoreId(who, store.id));
   const storeFilter = one(params.store);
@@ -81,13 +83,7 @@ export default async function RosterPage({
             <EmployeeNameField storeField="storeId" positionField="position" label="Name" />
             <label className="text-sm font-semibold">
               Position
-              <select className={`${fieldClass} mt-1`} name="position" defaultValue="Crew Trainer" required>
-                {DEVELOPMENT_POSITIONS.map((choice) => (
-                  <option key={choice.value} value={choice.value}>
-                    {choice.label}
-                  </option>
-                ))}
-              </select>
+              <PositionSelect name="position" positions={positions} defaultValue="Crew Trainer" required />
             </label>
             <button className={primaryButton} type="submit">
               Save person
