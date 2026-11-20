@@ -57,12 +57,17 @@ const TRAINER_POSITION_ALIASES: Record<string, (typeof TRAINER_POSITION_ORDER)[n
 };
 
 export const DEVELOPMENT_POSITIONS = [
-  { label: "Gen Mgr", value: "General Manager" },
-  { label: "Asst Mgr", value: "Assistant Manager" },
-  { label: "Shift Mgr", value: "Shift Manager" },
-  { label: "Area Mgr", value: "Area Manager" },
-  { label: "Crew Trainer", value: "Crew Trainer" },
+  { label: "Gen Mgr", es: "Gerente general", value: "General Manager" },
+  { label: "Asst Mgr", es: "Gerente asistente", value: "Assistant Manager" },
+  { label: "Shift Mgr", es: "Gerente de turno", value: "Shift Manager" },
+  { label: "Area Mgr", es: "Gerente de área", value: "Area Manager" },
+  { label: "Crew Trainer", es: "Entrenador de equipo", value: "Crew Trainer" },
 ] as const;
+
+export const TRAINER_MANAGER_LABEL = {
+  en: "Trainer / Manager",
+  es: "Entrenador / Gerente",
+} as const;
 
 export function canonicalTrainerPosition(position: string): string {
   const key = position.trim().toLowerCase();

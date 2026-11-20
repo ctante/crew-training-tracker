@@ -12,7 +12,7 @@ const retired = {
   deactivated: 0,
   skipped: 0,
   issues: [] as { row: number; message: string }[],
-  message: "The weekly roster sync is retired. People are added under Admin, then Add Trainer / Manager. Nothing was changed.",
+  message: "The weekly roster sync is retired. People are added under Admin, then Trainer / Manager. Nothing was changed.",
 };
 
 export async function POST(request: Request) {

@@ -12,7 +12,7 @@ export function CollapsibleSections({
 
   return (
     <div>
-      {sections.length > 1 ? (
+      {sections.length > 0 ? (
         <div className="mb-4 flex flex-wrap gap-2 print:hidden">
           <button
             className={ghostButton}

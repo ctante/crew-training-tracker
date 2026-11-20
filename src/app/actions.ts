@@ -355,6 +355,10 @@ function developmentReturn(formData: FormData, extra: Record<string, string>) {
     for (const [key, value] of Object.entries(extra)) {
       if (value) params.set(key, value);
     }
+    const filterStore = String(formData.get("filterStore") || "");
+    const filterPosition = String(formData.get("filterPosition") || "");
+    if (filterStore && filterStore !== "all") params.set("store", filterStore);
+    if (filterPosition && filterPosition !== "all") params.set("position", filterPosition);
     const text = params.toString();
     return text ? `/admin/roster?${text}` : "/admin/roster";
   }

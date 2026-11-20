@@ -33,7 +33,7 @@ export function UserList({
 
   return (
     <div className="mt-4">
-      {users.length > 1 ? (
+      {users.length > 0 ? (
         <div className="mb-4 flex flex-wrap gap-2 print:hidden">
           <button className={ghostButton} type="button" onClick={() => setOpen(Object.fromEntries(users.map((user) => [user.id, true])))}>
             Expand all

@@ -19,9 +19,13 @@ type Person = {
 export function RosterPeople({
   stores,
   canManage,
+  filterStore = "",
+  filterPosition = "",
 }: {
   stores: { id: string; number: string; trainers: Person[]; removed: Person[] }[];
   canManage: boolean;
+  filterStore?: string;
+  filterPosition?: string;
 }) {
   const [showRemoved, setShowRemoved] = useState(false);
 
@@ -69,6 +73,8 @@ export function RosterPeople({
                             >
                               <input type="hidden" name="id" value={person.id} />
                               <input type="hidden" name="returnTo" value="roster" />
+                              <input type="hidden" name="filterStore" value={filterStore} />
+                              <input type="hidden" name="filterPosition" value={filterPosition} />
                               <button className={ghostButton} type="submit">
                                 Remove
                               </button>
@@ -78,6 +84,8 @@ export function RosterPeople({
                             <form action={restoreDevelopmentPersonAction}>
                               <input type="hidden" name="id" value={person.id} />
                               <input type="hidden" name="returnTo" value="roster" />
+                              <input type="hidden" name="filterStore" value={filterStore} />
+                              <input type="hidden" name="filterPosition" value={filterPosition} />
                               <button className={ghostButton} type="submit">
                                 Restore
                               </button>
