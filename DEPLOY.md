@@ -6,7 +6,7 @@ The beta site is branch `beta` at https://crew-training-tracker.vercel.app. New 
 
 Beta uses its own Neon database. The Neon connection creates a database branch for Preview deployments only, and Production stays on the live branch. Before migrations run, a beta build checks the database host. If that host is the live production branch, the build stops and does not migrate or seed.
 
-The weekly roster sync must call https://mcd-its.vercel.app/api/sync/roster. The crew-training-tracker address is the beta site, so a sync pointed there would change the test database instead of the live one.
+The weekly roster sync is retired. People are added on the Development page. The old sync address must not be pointed at the beta site.
 
 ## 1. Create the Vercel project
 
@@ -88,35 +88,9 @@ A trainee who finishes Foundation and their first path can add the other path fr
 
 ## Weekly roster sync
 
-`POST /api/sync/roster` accepts the same CSV as Admin → Trainer roster. The header row is `Name, Store, Position, Qualified`. Qualified can be Yes or No. A file without Qualified treats every row as qualified.
+The Google Development Report is no longer the roster. Add people on the Development page.
 
-Send the file as the raw request body. Authorize it with:
-
-```http
-Authorization: Bearer <SYNC_TOKEN>
-```
-
-Set `SYNC_TOKEN` yourself in Vercel for Production (and Preview, if a scheduler will call those URLs). Use a long random string. Do not reuse `APP_PASSWORD` or `SESSION_SECRET`. If `SYNC_TOKEN` is missing, the endpoint returns `503` and does not change the roster.
-
-A matching name at that restaurant is updated. A new name is added. A person from an earlier roster file who is missing from this file is marked inactive and hidden from trainer dropdowns. They are not deleted. People added by hand on the Admin page stay as they are.
-
-Success response:
-
-```json
-{
-  "ok": true,
-  "rowsRead": 12,
-  "added": 2,
-  "updated": 8,
-  "deactivated": 1,
-  "skipped": 0,
-  "issues": []
-}
-```
-
-`issues` lists rows that could not be read or restaurants that are not in the tracker. A missing or wrong token returns `401`. An empty body or a file without Name and Store columns returns `400`.
-
-Admin → Trainer roster shows `Last roster sync: <date and time ET>, X added, Y deactivated`.
+`POST /api/sync/roster` is still in place so an old script does not have to be rewritten before it stops. It checks `Authorization: Bearer <SYNC_TOKEN>` the same way as before. A missing token returns `503`. A wrong token returns `401`. A valid token returns `ok: true` and `retired: true`, and does not add, update, or deactivate anyone.
 
 ## What fails on the first deploy
 

@@ -2,11 +2,9 @@ import { parseDevelopmentReport } from "./parse";
 import type { DevelopmentReportSource } from "./source";
 
 /**
- * Plug a live Development Report in here.
- *
- * The current hook reads a published CSV from DEVELOPMENT_REPORT_CSV_URL.
- * To use the Sheets API instead, replace `pull()` and keep the same
- * DevelopmentReportSource shape. The data layer will upsert whatever this returns.
+ * The weekly Development Report sync is retired. The app does not call this.
+ * People are added on the Development page. The file stays so an old import
+ * script can still be read, and `pull()` is not wired to a button or the API.
  */
 export function googleSheetsDevelopmentReportSource(): DevelopmentReportSource {
   return {

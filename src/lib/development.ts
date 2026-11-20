@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import sheet from "./development-sheet.json";
 import { access, allows, assertPermission, seesStoreId, visibleStoreNumbers, type Access } from "./access";
-import { canonicalTrainerPosition, compareTrainers } from "./constants";
+import { canonicalTrainerPosition, compareTrainers, developmentPosition } from "./constants";
 import { parseCsv, toCsv } from "./csv";
 import { prisma } from "./db";
 import {
@@ -222,7 +222,7 @@ export async function getDevelopment(filters: { week?: string; store?: string; p
   const stores = await scopedStores(who, filters.store);
   const position = filters.position && filters.position !== "all" ? canonicalTrainerPosition(filters.position) : "";
   const staff = await prisma.staff.findMany({
-    where: { active: true, storeId: { in: stores.map((store) => store.id) } },
+    where: { storeId: { in: stores.map((store) => store.id) } },
   });
   const weeks = await prisma.developmentWeek.findMany({
     where: { weekStart, storeId: { in: stores.map((store) => store.id) } },
@@ -239,11 +239,12 @@ export async function getDevelopment(filters: { week?: string; store?: string; p
         id: person.id,
         name: person.name,
         position: canonicalTrainerPosition(person.position) || person.position,
+        active: person.active,
         hours: entryByStaff.get(person.id)?.hours ?? "",
         trainingNeeded: entryByStaff.get(person.id)?.trainingNeeded ?? "",
         comments: entryByStaff.get(person.id)?.comments ?? "",
       }))
-      .sort(compareTrainers);
+      .sort((a, b) => Number(b.active) - Number(a.active) || compareTrainers(a, b));
     return {
       id: store.id,
       number: store.number,
@@ -262,9 +263,11 @@ export async function getDevelopment(filters: { week?: string; store?: string; p
     store: filters.store && filters.store !== "all" ? filters.store : "",
     position,
     canEdit: allows(who, "edit_development"),
+    canManageRoster: allows(who, "edit_development") && allows(who, "roster_import"),
     tasks: (await prisma.developmentTask.findMany({ orderBy: { sortOrder: "asc" } })).map((task) => task.label),
     canChooseStores: choices.length > 1,
     stores: choices.map((store) => store.number),
+    storeChoices: choices.map((store) => ({ id: store.id, number: store.number })),
     sections,
   };
 }
@@ -405,4 +408,105 @@ export async function developmentCsv(filters: { week?: string; store?: string; p
   }
   const span = data.store || "all-stores";
   return { filename: `development-${span}-${data.weekStart}.csv`, csv: toCsv(rows) };
+}
+
+async function requireRosterEditor() {
+  const who = await access();
+  assertPermission(who, "edit_development");
+  assertPermission(who, "roster_import");
+  return who;
+}
+
+function rosterName(name: string) {
+  const trimmed = name.trim().replace(/\s+/g, " ");
+  if (trimmed.length < 2) throw new Error("Enter a name.");
+  return trimmed.slice(0, 80);
+}
+
+function rosterPosition(position: string) {
+  const canonical = developmentPosition(position);
+  if (!canonical) throw new Error("Choose a position.");
+  return canonical;
+}
+
+async function assertUniquePerson(storeId: string, name: string, exceptId?: string) {
+  const key = personKey(name);
+  const people = await prisma.staff.findMany({ where: { storeId } });
+  const match = people.find((person) => person.id !== exceptId && personKey(person.name) === key);
+  if (!match) return;
+  const store = await prisma.store.findUnique({ where: { id: storeId } });
+  throw new Error(`${match.name} is already at ${store?.number ?? "this restaurant"}.`);
+}
+
+export async function addDevelopmentPerson(input: { storeId: string; name: string; position: string }) {
+  const who = await requireRosterEditor();
+  if (!seesStoreId(who, input.storeId)) throw new Error("Choose a restaurant you can open.");
+  const store = await prisma.store.findUnique({ where: { id: input.storeId } });
+  if (!store) throw new Error("Choose a restaurant.");
+  const name = rosterName(input.name);
+  const position = rosterPosition(input.position);
+  await assertUniquePerson(store.id, name);
+  return prisma.staff.create({
+    data: {
+      storeId: store.id,
+      name,
+      position,
+      isGm: position === "General Manager",
+      isTrainer: true,
+      qualified: true,
+      rosterSource: "manual",
+      active: true,
+      isSample: false,
+    },
+  });
+}
+
+export async function updateDevelopmentPerson(
+  id: string,
+  input: { storeId: string; name: string; position: string },
+) {
+  const who = await requireRosterEditor();
+  const current = await prisma.staff.findUnique({ where: { id } });
+  if (!current) throw new Error("That person is not on the roster.");
+  if (!seesStoreId(who, current.storeId) || !seesStoreId(who, input.storeId)) {
+    throw new Error("Choose a restaurant you can open.");
+  }
+  const store = await prisma.store.findUnique({ where: { id: input.storeId } });
+  if (!store) throw new Error("Choose a restaurant.");
+  const name = rosterName(input.name);
+  const position = rosterPosition(input.position);
+  await assertUniquePerson(store.id, name, current.id);
+  return prisma.staff.update({
+    where: { id: current.id },
+    data: {
+      storeId: store.id,
+      name,
+      position,
+      isGm: position === "General Manager",
+      isTrainer: true,
+      qualified: true,
+    },
+  });
+}
+
+export async function deactivateDevelopmentPerson(id: string) {
+  const who = await requireRosterEditor();
+  const current = await prisma.staff.findUnique({ where: { id } });
+  if (!current) throw new Error("That person is not on the roster.");
+  if (!seesStoreId(who, current.storeId)) throw new Error("Choose a restaurant you can open.");
+  if (!current.active) return current;
+  return prisma.staff.update({ where: { id: current.id }, data: { active: false } });
+}
+
+export async function restoreDevelopmentPerson(id: string) {
+  const who = await requireRosterEditor();
+  const current = await prisma.staff.findUnique({ where: { id } });
+  if (!current) throw new Error("That person is not on the roster.");
+  if (!seesStoreId(who, current.storeId)) throw new Error("Choose a restaurant you can open.");
+  await assertUniquePerson(current.storeId, current.name, current.id);
+  if (current.active) return current;
+  return prisma.staff.update({
+    where: { id: current.id },
+    data: { active: true, isTrainer: true, qualified: true },
+  });
 }

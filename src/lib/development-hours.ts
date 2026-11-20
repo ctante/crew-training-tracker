@@ -4,6 +4,7 @@ export type DevelopmentPerson = {
   id: string;
   name: string;
   position: string;
+  active: boolean;
   hours: string;
   trainingNeeded: string;
   comments: string;
