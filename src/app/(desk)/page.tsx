@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Suspense } from "react";
+import { CollapsibleSections } from "@/components/collapsible-sections";
 import { DateRangeFilters } from "@/components/date-range-filters";
 import { FilterSelect } from "@/components/filter-select";
 import { TraineeSearch } from "@/components/trainee-search";
@@ -170,13 +171,32 @@ function TraineeBoard({
         </div>
       </div>
 
-      <div className="mt-5 space-y-3">
+      <div className="mt-5">
         {data.rows.length === 0 ? (
           <p className="rounded-3xl border border-dashed border-line bg-card px-5 py-10 text-center text-sm text-ink/70">
             No trainees match these filters.
           </p>
         ) : (
-          data.rows.map((row) => <TraineeRow key={row.id} row={row} />)
+          <CollapsibleSections
+            sections={data.stores
+              .map((store) => ({
+                store,
+                rows: data.rows.filter((row) => row.storeNumber === store.number),
+              }))
+              .filter((group) => group.rows.length > 0)
+              .map(({ store, rows }) => ({
+                id: store.id,
+                title: storeLabel(store.number),
+                count: `${rows.length} trainee${rows.length === 1 ? "" : "s"}`,
+                body: (
+                  <div className="space-y-3">
+                    {rows.map((row) => (
+                      <TraineeRow key={row.id} row={row} />
+                    ))}
+                  </div>
+                ),
+              }))}
+          />
         )}
       </div>
     </>
@@ -245,13 +265,20 @@ function SessionsPanel({
           {shown.length} session{shown.length === 1 ? "" : "s"} in this list.
         </p>
       )}
-      <div className="mt-4 space-y-3">
+      <div className="mt-4">
         {groups.length === 0 ? (
           <p className="rounded-3xl border border-dashed border-line bg-card px-5 py-10 text-center text-sm text-ink/70">
             No sessions in this list.
           </p>
         ) : (
-          groups.map((group) => <TraineeSessions key={group.traineeId} group={group} today={sessions.today} />)
+          <CollapsibleSections
+            sections={groups.map((group) => ({
+              id: group.traineeId,
+              title: group.traineeName,
+              count: `${storeLabel(group.storeNumber)} · ${group.sessions.length} session${group.sessions.length === 1 ? "" : "s"}`,
+              body: <TraineeSessions group={group} today={sessions.today} />,
+            }))}
+          />
         )}
       </div>
     </>
@@ -287,14 +314,15 @@ function TraineeSessions({
   today: string;
 }) {
   return (
-    <section className="rounded-3xl border border-line bg-card p-4 shadow-sm">
-      <Link href={`/trainees/${group.traineeId}`} className="block">
-        <p className="text-xs font-semibold uppercase tracking-[0.12em] text-ink/45">
-          {storeLabel(group.storeNumber)} · {group.pathLabel}
-        </p>
-        <h2 className="text-xl font-semibold">{group.traineeName}</h2>
-      </Link>
-      <ul className="mt-3 divide-y divide-line">
+    <div>
+      <p className="mb-2 text-sm text-ink/60">
+        <Link href={`/trainees/${group.traineeId}`} className="font-semibold text-campus">
+          Open schedule
+        </Link>
+        {" · "}
+        {group.pathLabel}
+      </p>
+      <ul className="divide-y divide-line">
         {group.sessions.map((row) => (
           <li
             key={row.id}
@@ -314,7 +342,7 @@ function TraineeSessions({
           </li>
         ))}
       </ul>
-    </section>
+    </div>
   );
 }
 

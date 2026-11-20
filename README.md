@@ -28,7 +28,7 @@ Ongoing development uses the beta site: https://crew-training-tracker.vercel.app
 
 New work opens a pull request into `beta`. When Chris says to promote, merge `beta` into `main`. That updates the live site. Do not open routine work against `main`.
 
-The weekly Google roster sync is retired. People are added under Admin, then Add Trainer / Manager. `POST /api/sync/roster` is still there and still checks its token, but it does not change the roster.
+The weekly Google roster sync is retired. People are added under Admin, then Trainer / Manager. `POST /api/sync/roster` is still there and still checks its token, but it does not change the roster.
 
 ## Users
 
@@ -45,7 +45,7 @@ A person only sees the restaurants on the account. Reports, the board, the sched
 
 ## Development
 
-Development is the weekly sheet for managers and crew trainers, and it is now the roster. Weeks run Monday through Sunday and are labeled like Week of 11/23-11/29. The first view shows people who have hours, a development activity, or comments. If the current week has none, the page opens the latest week that already has work, or the next week that has work. Edit lists every active person on the roster. Show everyone does that without editing. Someone with Edit development and Manage roster can add a person, change the name, restaurant, or position, or remove them. Removing keeps past weeks and training history. The same name cannot be added twice at one restaurant. Hours are a dropdown from 0.5 to 10. Development Activity is a dropdown an admin maintains under Admin, then Development Activity, and the choices stay in alphabetical order. The Spanish label is Actividad de desarrollo. New trainers and managers are added under Admin, then Add Trainer / Manager. Add work records hours or an activity for someone already on the roster. Comments stay free text. Copy last week carries the previous week forward. Download CSV uses Employee, Restaurant, Position, Training Hours Needed, Development Activity, Comments.
+Development is the weekly sheet for managers and crew trainers, and it is now the roster. Weeks run Monday through Sunday and are labeled like Week of 11/23-11/29. The first view shows people who have hours, a development activity, or comments. If the current week has none, the page opens the latest week that already has work, or the next week that has work. Edit lists every active person on the roster. Show everyone does that without editing. Someone with Edit development and Manage roster can add a person, change the name, restaurant, or position, or remove them. Removing keeps past weeks and training history. The same name cannot be added twice at one restaurant. Hours are a dropdown from 0.5 to 10. Development Activity is a dropdown an admin maintains under Admin, then Development Activity, and the choices stay in alphabetical order. The Spanish label is Actividad de desarrollo. New trainers and managers are added under Admin, then Trainer / Manager. Add work records hours or an activity for someone already on the roster. Comments stay free text. Copy last week carries the previous week forward. Download CSV uses Employee, Restaurant, Position, Training Hours Needed, Development Activity, Comments.
 
 Managers and supervisors can view it. Admins can edit it, and can grant Edit development to someone else. An admin can also import a CSV of those columns into the week on screen. That import is the way to load a sheet onto the live site later. A beta deploy loads the bundled sheet by itself. A production deploy does not.
 
@@ -71,7 +71,7 @@ In the sheets, the Trainer column is a dropdown fed by the Development Report ro
 
   Sheet abbreviations such as `Gen Mgr`, `Asst Mgr`, `Shift Mgr`, and `Area Mgr` sort into those same groups. Anything else sorts after them.
 
-- Add a person under Admin, then Add Trainer / Manager. The positions are Gen Mgr, Asst Mgr, Shift Mgr, Area Mgr, and Crew Trainer. Each one is a qualified trainer at that restaurant.
+- Add a person under Admin, then Trainer / Manager. The positions are Gen Mgr, Asst Mgr, Shift Mgr, Area Mgr, and Crew Trainer. Each one is a qualified trainer at that restaurant.
 - Removing a person hides them from the roster and from trainer dropdowns. Their past development weeks and assigned sessions stay.
 - Orientation remains available on the first module as a label.
 
@@ -91,6 +91,10 @@ Every sample person uses the last name Sample. Each restaurant has six qualified
 A single trainee tab exports as `Module, Time, Videos, Credit, Date, Trainer, Completed`. Dates use the sheet’s long form (`Wednesday, November 4, 2026`). Completed is `TRUE` or `FALSE`.
 
 The all-restaurant export adds store, trainee, language, position, start date, status, section, completed date, and notes. Duplicate module names (Fries, Hashbrowns, the assembly rows) match on name plus time.
+
+## Conventions
+
+Grouped lists and long lists start collapsed. Each header shows a count. Expand all and Collapse all sit above the list. Print still shows the contents. New grouped lists follow the same pattern.
 
 ## Assumptions
 

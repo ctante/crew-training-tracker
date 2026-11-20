@@ -30,7 +30,7 @@ const tiles = [
   },
   {
     href: "/admin/roster",
-    title: "Add Trainer / Manager",
+    title: "Trainer / Manager",
     text: "Add a trainer or manager, and remove or restore people already on the roster.",
     show: "roster_import" as const,
   },

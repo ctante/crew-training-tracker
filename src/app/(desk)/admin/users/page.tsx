@@ -1,23 +1,17 @@
 import { UserForm } from "@/components/user-form";
+import { UserList } from "@/components/user-list";
 import { AdminNav } from "@/components/admin-nav";
 import { Flash, PageHeader } from "@/components/ui";
 import { redirect } from "next/navigation";
 import { access, allows, loadRoleDefaults } from "@/lib/access";
 import { listStoreChoices } from "@/lib/data";
-import { formatDateTimeEt, one } from "@/lib/format";
+import { one } from "@/lib/format";
 import { ROLE_SUMMARIES, type UserRole } from "@/lib/permissions";
 import { listAppUsers } from "@/lib/users";
 
 export const dynamic = "force-dynamic";
 
 export const metadata = { title: "Users" };
-
-const ROLE_TITLE: Record<UserRole, string> = {
-  USER: "User",
-  MANAGER: "Manager",
-  SUPERVISOR: "Supervisor",
-  ADMIN: "Admin",
-};
 
 export default async function UsersPage({
   searchParams,
@@ -54,30 +48,14 @@ export default async function UsersPage({
           <UserForm stores={stores} roles={roles} user={null} canGrant={who.role === "admin"} defaults={defaults} />
         </div>
       </section>
-      <div className="mt-4 space-y-3">
-        {users.map((user) => (
-          <details key={user.id} className="rounded-3xl border border-line bg-card p-4" open={one(params.edit) === user.id}>
-            <summary className="cursor-pointer">
-              <span className="font-semibold">{user.name}</span>
-              <span className="ml-2 text-sm text-ink/60">
-                {user.login} · {ROLE_TITLE[user.role]} · {user.storeNumbers.length ? user.storeNumbers.join(", ") : "All restaurants"}
-              </span>
-              <span className={`ml-2 rounded-full px-2 py-0.5 text-xs font-semibold ${user.active ? "bg-moss/15 text-moss" : "bg-sun text-sun-deep"}`}>
-                {user.active ? "Active" : "Inactive"}
-              </span>
-              {Object.keys(user.overrides).length > 0 ? (
-                <span className="ml-2 rounded-full bg-sun px-2 py-0.5 text-xs font-bold text-sun-deep">Override</span>
-              ) : null}
-              <span className="mt-1 block text-sm text-ink/60">
-                Last sign-in: {user.lastSignedInAt ? formatDateTimeEt(user.lastSignedInAt) : "Never"}
-              </span>
-            </summary>
-            <div className="mt-4">
-              <UserForm stores={stores} roles={roles.includes(user.role) ? roles : [user.role, ...roles]} user={user} canGrant={who.role === "admin"} defaults={defaults} />
-            </div>
-          </details>
-        ))}
-      </div>
+      <UserList
+        users={users}
+        stores={stores}
+        roles={roles}
+        canGrant={who.role === "admin"}
+        defaults={defaults}
+        editId={one(params.edit)}
+      />
     </div>
   );
 }

@@ -39,7 +39,7 @@ export function DevelopmentBoard({
   everyoneHref: string;
   workHref: string;
 }) {
-  const [open, setOpen] = useState<Record<string, boolean>>(() => Object.fromEntries(sections.map((item) => [item.id, true])));
+  const [open, setOpen] = useState<Record<string, boolean>>({});
   const [editing, setEditing] = useState(false);
   const [addingWork, setAddingWork] = useState(false);
   const [showRemoved, setShowRemoved] = useState(false);
@@ -179,7 +179,7 @@ export function DevelopmentBoard({
         ) : null}
         <div className="space-y-4">
           {visible.map((item) => {
-            const expanded = open[item.id] !== false;
+            const expanded = open[item.id] === true;
             return (
               <section key={item.id} className="rounded-3xl border border-line bg-card print:break-inside-avoid print:border-0">
                 <button

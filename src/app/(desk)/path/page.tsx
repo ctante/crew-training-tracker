@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { CollapsibleSections } from "@/components/collapsible-sections";
 import { ModuleLinks } from "@/components/module-links";
 import { Flag, PageHeader } from "@/components/ui";
 import { BLOCKS, CAMPUS_HOME, blockFor } from "@/lib/constants";
@@ -49,15 +50,19 @@ export default async function PathPage({
       <p className="mb-4 text-sm text-ink/65">
         Blue Campus rows are online. Black-ink floor rows are hands-on. Block times ({BLOCKS.map((block) => block.hours).filter((value, index, list) => list.indexOf(value) === index).join(", ")}) are the estimates written in column A of the sheet, separate from adding up each row.
       </p>
-      <ol className="space-y-3">
-        {modules.map((module, index) => {
-          const showSection = module.section !== modules[index - 1]?.section;
+      <CollapsibleSections
+        sections={groupPathSections(modules).map((group) => ({
+          id: group.section,
+          title: group.title,
+          count: `${group.modules.length} module${group.modules.length === 1 ? "" : "s"}`,
+          body: (
+            <ol className="space-y-3">
+              {group.modules.map((module) => {
           const block = blockFor(module.sortOrder);
           const titles = splitTitles(module.videoTitles);
           const start = block && block.from === module.sortOrder;
           return (
             <li key={module.id}>
-              {showSection ? <h2 className="mb-2 mt-6 font-display text-2xl first:mt-0">{module.sectionTitle}</h2> : null}
               {start ? (
                 <p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-ink/45">
                   Sheet block {block.hours}
@@ -97,9 +102,22 @@ export default async function PathPage({
                 </div>
               </article>
             </li>
-          );
-        })}
-      </ol>
+              );
+              })}
+            </ol>
+          ),
+        }))}
+      />
     </div>
   );
+}
+
+function groupPathSections<T extends { section: string; sectionTitle: string }>(modules: T[]) {
+  const groups: { section: string; title: string; modules: T[] }[] = [];
+  for (const item of modules) {
+    const last = groups.at(-1);
+    if (!last || last.section !== item.section) groups.push({ section: item.section, title: item.sectionTitle, modules: [item] });
+    else last.modules.push(item);
+  }
+  return groups;
 }

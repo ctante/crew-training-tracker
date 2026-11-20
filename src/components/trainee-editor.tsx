@@ -194,7 +194,7 @@ function ModuleCard({
           </select>
           {trainers.length === 0 ? (
             <span className="mt-1 block font-normal text-ink/55">
-              No qualified trainers at this restaurant. Add them under Admin, then Add Trainer / Manager.
+              No qualified trainers at this restaurant. Add them under Admin, then Trainer / Manager.
             </span>
           ) : (
             <span className="mt-1 block font-normal text-ink/55">From this restaurant&apos;s qualified roster.</span>
