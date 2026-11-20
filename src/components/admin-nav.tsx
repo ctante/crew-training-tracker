@@ -8,7 +8,7 @@ export async function AdminNav({ current }: { current: string }) {
     allows(who, "users") || who.role === "admin" ? { href: "/admin/users", label: "Users" } : null,
     who.role === "admin" ? { href: "/admin/permissions", label: "Role defaults" } : null,
     allows(who, "store_logins") ? { href: "/admin/access", label: "Store passwords" } : null,
-    allows(who, "roster_import") ? { href: "/admin/roster", label: "Trainer roster" } : null,
+    allows(who, "roster_import") ? { href: "/admin/roster", label: "Add Trainer / Manager" } : null,
     allows(who, "modules") ? { href: "/admin/modules", label: "Modules" } : null,
     allows(who, "roster_import") ? { href: "/admin/import", label: "Bulk progress" } : null,
     who.role === "admin" ? { href: "/admin/development", label: "Development Activity" } : null,

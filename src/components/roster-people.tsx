@@ -17,8 +17,10 @@ type Person = {
 
 export function RosterPeople({
   stores,
+  canManage,
 }: {
   stores: { id: string; number: string; trainers: Person[]; removed: Person[] }[];
+  canManage: boolean;
 }) {
   const [showRemoved, setShowRemoved] = useState(false);
 
@@ -54,7 +56,7 @@ export function RosterPeople({
                             {person.isSample ? " · Sample" : ""}
                             {person.active ? "" : " · Removed"}
                           </span>
-                          {person.active ? (
+                          {canManage && person.active ? (
                             <form
                               action={deactivateDevelopmentPersonAction}
                               onSubmit={(event) => {
@@ -69,7 +71,8 @@ export function RosterPeople({
                                 Remove
                               </button>
                             </form>
-                          ) : (
+                          ) : null}
+                          {canManage && !person.active ? (
                             <form action={restoreDevelopmentPersonAction}>
                               <input type="hidden" name="id" value={person.id} />
                               <input type="hidden" name="returnTo" value="roster" />
@@ -77,7 +80,7 @@ export function RosterPeople({
                                 Restore
                               </button>
                             </form>
-                          )}
+                          ) : null}
                         </li>
                       ))}
                     </ul>

@@ -6,7 +6,7 @@ The beta site is branch `beta` at https://crew-training-tracker.vercel.app. New 
 
 Beta uses its own Neon database. The Neon connection creates a database branch for Preview deployments only, and Production stays on the live branch. Before migrations run, a beta build checks the database host. If that host is the live production branch, the build stops and does not migrate or seed.
 
-The weekly roster sync is retired. People are added on the Development page. The old sync address must not be pointed at the beta site.
+The weekly roster sync is retired. People are added under Admin, then Add Trainer / Manager. The old sync address must not be pointed at the beta site.
 
 ## 1. Create the Vercel project
 
@@ -88,7 +88,7 @@ A trainee who finishes Foundation and their first path can add the other path fr
 
 ## Weekly roster sync
 
-The Google Development Report is no longer the roster. Add people on the Development page.
+The Google Development Report is no longer the roster. Add people under Admin, then Add Trainer / Manager.
 
 `POST /api/sync/roster` is still in place so an old script does not have to be rewritten before it stops. It checks `Authorization: Bearer <SYNC_TOKEN>` the same way as before. A missing token returns `503`. A wrong token returns `401`. A valid token returns `ok: true` and `retired: true`, and does not add, update, or deactivate anyone.
 

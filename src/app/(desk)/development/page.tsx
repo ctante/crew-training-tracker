@@ -39,7 +39,7 @@ export default async function DevelopmentPage({
       <PageHeader
         kicker="Development"
         title={data.label}
-        description="Monday through Sunday. This view lists people who have work in the selected week. If this week is empty, it opens the latest week that has work. Edit lists the whole roster. + Add person creates an employee. Add work records hours or a development activity for someone already on the roster."
+        description="Monday through Sunday. This view lists people who have work in the selected week. If this week is empty, it opens the latest week that has work. Edit lists the whole roster. Add work records hours or a development activity. New trainers and managers are added under Admin."
         actions={
           <div className="flex flex-wrap gap-2 print:hidden">
             <PrintButton />
@@ -52,9 +52,11 @@ export default async function DevelopmentPage({
       <Flash
         error={one(params.error)}
         notice={
-          one(params.saved) === "person"
-            ? "Person added to the roster."
-            : one(params.saved) === "work"
+          one(params.saved) === "restored"
+            ? "Person restored to the roster."
+            : one(params.saved) === "person"
+              ? "Person saved."
+              : one(params.saved) === "work"
               ? "Work saved for this week."
               : one(params.saved) === "removed"
               ? "Person removed from the roster. Past weeks stay."

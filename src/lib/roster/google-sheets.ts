@@ -3,7 +3,7 @@ import type { DevelopmentReportSource } from "./source";
 
 /**
  * The weekly Development Report sync is retired. The app does not call this.
- * People are added on the Development page. The file stays so an old import
+ * People are added under Admin, then Add Trainer / Manager. The file stays so an old import
  * script can still be read, and `pull()` is not wired to a button or the API.
  */
 export function googleSheetsDevelopmentReportSource(): DevelopmentReportSource {

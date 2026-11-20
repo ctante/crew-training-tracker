@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import {
-  addDevelopmentPersonAction,
   addDevelopmentWorkAction,
   deactivateDevelopmentPersonAction,
   restoreDevelopmentPersonAction,
@@ -42,7 +41,6 @@ export function DevelopmentBoard({
 }) {
   const [open, setOpen] = useState<Record<string, boolean>>(() => Object.fromEntries(sections.map((item) => [item.id, true])));
   const [editing, setEditing] = useState(false);
-  const [addingPerson, setAddingPerson] = useState(false);
   const [addingWork, setAddingWork] = useState(false);
   const [showRemoved, setShowRemoved] = useState(false);
   const showAll = canEdit && editing;
@@ -75,58 +73,12 @@ export function DevelopmentBoard({
   return (
     <div>
       <div className="mb-4 flex flex-wrap gap-2 print:hidden">
-        {canManageRoster ? (
-          <button className={primaryButton} type="button" onClick={() => { setAddingPerson((value) => !value); setAddingWork(false); }}>
-            + Add person
-          </button>
-        ) : null}
         {canEdit ? (
-          <button className={ghostButton} type="button" onClick={() => { setAddingWork((value) => !value); setAddingPerson(false); }}>
+          <button className={ghostButton} type="button" onClick={() => setAddingWork((value) => !value)}>
             Add work
           </button>
         ) : null}
       </div>
-      {addingPerson && canManageRoster ? (
-        <form action={addDevelopmentPersonAction} className="mb-4 rounded-3xl border border-line bg-card p-4 print:hidden">
-          <h2 className="font-display text-2xl">Add person</h2>
-          <p className="mt-1 text-sm text-ink/70">Creates a roster employee and a qualified trainer. This does not assign hours.</p>
-          <input type="hidden" name="week" value={week} />
-          <input type="hidden" name="returnStore" value={store} />
-          <input type="hidden" name="returnPosition" value={position} />
-          <div className="mt-3 flex flex-wrap items-end gap-3">
-            <label className="text-sm font-semibold">
-              Store
-              <select className={`${fieldClass} mt-1`} name="storeId" defaultValue={storeChoices.find((choice) => choice.number === store)?.id ?? storeChoices[0]?.id ?? ""} required>
-                {storeChoices.map((choice) => (
-                  <option key={choice.id} value={choice.id}>
-                    {choice.number}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="text-sm font-semibold">
-              Name
-              <input className={`${fieldClass} mt-1`} name="name" required autoComplete="off" />
-            </label>
-            <label className="text-sm font-semibold">
-              Position
-              <select className={`${fieldClass} mt-1`} name="position" defaultValue="Crew Trainer" required>
-                {DEVELOPMENT_POSITIONS.map((choice) => (
-                  <option key={choice.value} value={choice.value}>
-                    {choice.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <button className={primaryButton} type="submit">
-              Save person
-            </button>
-            <button className={ghostButton} type="button" onClick={() => setAddingPerson(false)}>
-              Cancel
-            </button>
-          </div>
-        </form>
-      ) : null}
       {addingWork && canEdit ? (
         <form action={addDevelopmentWorkAction} className="mb-4 rounded-3xl border border-line bg-card p-4 print:hidden">
           <h2 className="font-display text-2xl">Add work</h2>
