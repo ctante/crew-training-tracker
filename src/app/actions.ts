@@ -393,7 +393,7 @@ export async function addDevelopmentPersonAction(formData: FormData) {
     redirect(developmentReturn(formData, { error: message(error) }));
   }
   refreshAll();
-  redirect(developmentReturn(formData, { saved: "person", people: "all" }));
+  redirect(developmentReturn(formData, { saved: "added" }));
 }
 
 export async function updateDevelopmentPersonAction(formData: FormData) {
@@ -427,7 +427,7 @@ export async function restoreDevelopmentPersonAction(formData: FormData) {
     redirect(developmentReturn(formData, { error: message(error) }));
   }
   refreshAll();
-  redirect(developmentReturn(formData, { saved: "person" }));
+  redirect(developmentReturn(formData, { saved: "restored" }));
 }
 
 export async function signInAction(input: { login?: string; password: string; nextPath: string }) {

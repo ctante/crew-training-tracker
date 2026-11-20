@@ -30,8 +30,8 @@ const tiles = [
   },
   {
     href: "/admin/roster",
-    title: "Trainer roster",
-    text: "Qualified trainers are added on the Development page.",
+    title: "Add Trainer / Manager",
+    text: "Add a trainer or manager, and remove or restore people already on the roster.",
     show: "roster_import" as const,
   },
   {
