@@ -49,6 +49,20 @@ export const PERMISSIONS = [
     adminGrant: false,
   },
   {
+    key: "view_development",
+    label: "View development",
+    detail: "See the weekly development hours and comments for the restaurants this person can open.",
+    group: "Development",
+    adminGrant: false,
+  },
+  {
+    key: "edit_development",
+    label: "Edit development",
+    detail: "Change weekly hours, comments, and store notes, copy last week, and import a development sheet.",
+    group: "Development",
+    adminGrant: true,
+  },
+  {
     key: "view_stores",
     label: "View other stores",
     detail: "See every restaurant assigned to this account, not just one. An Admin still has to assign those restaurants.",
@@ -94,8 +108,8 @@ const ALL_KEYS = PERMISSIONS.map((item) => item.key);
 
 export const CODE_ROLE_DEFAULTS: Record<UserRole, Permission[]> = {
   USER: ["sign_off"],
-  MANAGER: ["sign_off", "schedule", "trainees_edit", "reports", "export"],
-  SUPERVISOR: ["sign_off", "schedule", "trainees_edit", "reports", "export", "view_stores", "users"],
+  MANAGER: ["sign_off", "schedule", "trainees_edit", "reports", "export", "view_development"],
+  SUPERVISOR: ["sign_off", "schedule", "trainees_edit", "reports", "export", "view_development", "view_stores", "users"],
   ADMIN: [...ALL_KEYS],
 };
 
@@ -174,7 +188,7 @@ export const ROLE_SUMMARIES: { role: UserRole; title: string; text: string }[] =
   {
     role: "MANAGER",
     title: "Manager",
-    text: "Everything a User can do, plus scheduling, adding trainees, and reports, for one restaurant.",
+    text: "Everything a User can do, plus scheduling, adding trainees, reports, and viewing the development week, for one restaurant.",
   },
   {
     role: "SUPERVISOR",
@@ -184,6 +198,6 @@ export const ROLE_SUMMARIES: { role: UserRole; title: string; text: string }[] =
   {
     role: "ADMIN",
     title: "Admin",
-    text: "Every restaurant and every Admin page: Users, modules, roster, import, and store logins. The admin password still signs in without a username.",
+    text: "Every restaurant and every Admin page, including editing the development week. The admin password still signs in without a username.",
   },
 ];

@@ -31,6 +31,7 @@ model Store {
   staff          Staff[]
   trainees       Trainee[]
   appUsers       AppUserStore[]
+  developmentWeeks DevelopmentWeek[]
 }
 
 model AppUser {
@@ -78,8 +79,35 @@ model Staff {
   isSample     Boolean         @default(false)
   createdAt    DateTime        @default(now())
   assignments  TraineeModule[]
+  developmentEntries DevelopmentEntry[]
 
   @@index([storeId])
+}
+
+model DevelopmentWeek {
+  id        String              @id @default(cuid())
+  storeId   String
+  store     Store               @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  weekStart String
+  notes     String              @default("")
+  updatedAt DateTime            @updatedAt
+  entries   DevelopmentEntry[]
+
+  @@unique([storeId, weekStart])
+  @@index([weekStart])
+}
+
+model DevelopmentEntry {
+  id       String          @id @default(cuid())
+  weekId   String
+  week     DevelopmentWeek @relation(fields: [weekId], references: [id], onDelete: Cascade)
+  staffId  String
+  staff    Staff           @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  hours    String          @default("")
+  comments String          @default("")
+
+  @@unique([weekId, staffId])
+  @@index([staffId])
 }
 
 model Module {

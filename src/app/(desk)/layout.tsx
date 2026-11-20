@@ -14,6 +14,7 @@ export default async function DeskLayout({ children }: { children: React.ReactNo
       sampleCount={sampleCount}
       showAdmin={canOpenAdmin(who)}
       showReports={allows(who, "reports")}
+      showDevelopment={allows(who, "view_development")}
       showAddTrainee={allows(who, "trainees_edit")}
       signedInLabel={signedInLabel(who)}
     >

@@ -41,7 +41,13 @@ Roles start with these permissions. An admin can change any box for one person. 
 - **Supervisor** can do that across the assigned restaurants, and can manage Managers and Users for those restaurants.
 - **Admin** can do everything, including modules, the roster, import, and store logins. The admin password still signs in with the username left blank.
 
-A person only sees the restaurants on the account. Reports, the board, and the schedule follow that limit on the server.
+A person only sees the restaurants on the account. Reports, the board, the schedule, and the development week follow that limit on the server.
+
+## Development
+
+Development is the weekly sheet of hours and comments for managers and crew trainers. Weeks run Monday through Sunday and are labeled like Week of 11/23-11/29. Each restaurant can also keep a note for that week. Copy last week carries the previous week forward. Download CSV uses the sheet columns: Employee, Restaurant, Position, Training Hours Needed, Comments.
+
+Managers and supervisors can view it. Admins can edit it, and can grant Edit development to someone else. An admin can also import a CSV of those columns into the week on screen. That import is the way to load a sheet onto the live site later. A beta deploy loads the bundled sheet by itself. A production deploy does not.
 
 The database is only touched through `src/lib/data.ts`. Neon hosts use the Neon serverless driver. Any other Postgres URL uses Prisma's standard client.
 

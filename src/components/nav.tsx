@@ -19,6 +19,12 @@ const links = [
     match: (path: string) => path.startsWith("/trainees"),
   },
   { href: "/path", label: "Path", icon: PathIcon, match: (path: string) => path.startsWith("/path") },
+  {
+    href: "/development",
+    label: "Development",
+    icon: DevelopIcon,
+    match: (path: string) => path.startsWith("/development"),
+  },
   { href: "/reports", label: "Reports", icon: ReportIcon, match: (path: string) => path.startsWith("/reports") },
   {
     href: "/admin",
@@ -28,8 +34,16 @@ const links = [
   },
 ];
 
-export function SideNav({ showAdmin = true, showReports = true }: { showAdmin?: boolean; showReports?: boolean }) {
-  const items = links.filter((link) => (link.href === "/admin" ? showAdmin : link.href === "/reports" ? showReports : true));
+export function SideNav({
+  showAdmin = true,
+  showReports = true,
+  showDevelopment = true,
+}: {
+  showAdmin?: boolean;
+  showReports?: boolean;
+  showDevelopment?: boolean;
+}) {
+  const items = links.filter((link) => visible(link.href, showAdmin, showReports, showDevelopment));
   return (
     <nav className="flex flex-1 flex-col gap-1 px-3 py-4" aria-label="Main">
       {items.map((link) => (
@@ -39,12 +53,21 @@ export function SideNav({ showAdmin = true, showReports = true }: { showAdmin?: 
   );
 }
 
-export function TabNav({ showAdmin = true, showReports = true }: { showAdmin?: boolean; showReports?: boolean }) {
-  const items = links.filter((link) => (link.href === "/admin" ? showAdmin : link.href === "/reports" ? showReports : true));
-  const columns = items.length === 6 ? "grid-cols-6" : items.length === 5 ? "grid-cols-5" : "grid-cols-4";
+export function TabNav({
+  showAdmin = true,
+  showReports = true,
+  showDevelopment = true,
+}: {
+  showAdmin?: boolean;
+  showReports?: boolean;
+  showDevelopment?: boolean;
+}) {
+  const items = links.filter((link) => visible(link.href, showAdmin, showReports, showDevelopment));
+  const columns =
+    items.length >= 7 ? "grid-cols-7" : items.length === 6 ? "grid-cols-6" : items.length === 5 ? "grid-cols-5" : "grid-cols-4";
   return (
     <nav
-      className={`fixed inset-x-0 bottom-0 z-20 grid border-t border-white/10 bg-bark px-1 pb-[max(0.4rem,env(safe-area-inset-bottom))] pt-1 lg:hidden ${columns}`}
+      className={`fixed inset-x-0 bottom-0 z-20 grid border-t border-white/10 bg-bark px-1 pb-[max(0.4rem,env(safe-area-inset-bottom))] pt-1 print:hidden lg:hidden ${columns}`}
       aria-label="Main"
     >
       {items.map((link) => (
@@ -52,6 +75,13 @@ export function TabNav({ showAdmin = true, showReports = true }: { showAdmin?: b
       ))}
     </nav>
   );
+}
+
+function visible(href: string, showAdmin: boolean, showReports: boolean, showDevelopment: boolean) {
+  if (href === "/admin") return showAdmin;
+  if (href === "/reports") return showReports;
+  if (href === "/development") return showDevelopment;
+  return true;
 }
 
 function NavItem({
@@ -120,6 +150,15 @@ function PathIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
       <path d="M5 6h14M5 12h10M5 18h7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function DevelopIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M6 4h9l3 3v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Z" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M14 4v4h4M8 12h8M8 16h5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
     </svg>
   );
 }

@@ -1,0 +1,938 @@
+{
+  "stores": [
+    {
+      "store": "5207",
+      "week": "Week of 11/30-12/06",
+      "notes": "",
+      "people": [
+        {
+          "name": "Ana Lopez",
+          "position": "Area Mgr",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Christina Eucare",
+          "position": "Area Mgr",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Ilsia Silva",
+          "position": "Area Mgr",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Cesia Acosta Hernandez",
+          "position": "Area Mgr",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Brittni Nelson",
+          "position": "Asst Mgr",
+          "hours": "2",
+          "comments": "Schedules/ITS set up"
+        },
+        {
+          "name": "Maria Alvarenga",
+          "position": "Asst Mgr",
+          "hours": "",
+          "comments": "Cash Audit"
+        },
+        {
+          "name": "William Long Jr",
+          "position": "Asst Mgr",
+          "hours": "2",
+          "comments": "Inventory+Truck orders"
+        },
+        {
+          "name": "Judith Aleman",
+          "position": "Crew Trainer",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Alicia Perez",
+          "position": "Crew Trainer",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Bryan Leon",
+          "position": "Crew Trainer",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Mya Buchanan",
+          "position": "Crew Trainer",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Charlie Jenkins",
+          "position": "Crew Trainer",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Emily Vankirk",
+          "position": "Crew Trainer",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Josselin Luna",
+          "position": "Crew Trainer",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Mirna Calderon",
+          "position": "Crew Trainer",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Christopher Plummer",
+          "position": "Crew Trainer",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Abdi Aseged",
+          "position": "Gen Mgr",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Autum Thompson",
+          "position": "Gen Mgr",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Malyne Medrado",
+          "position": "Shift Mgr",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Elizabeth Monroy",
+          "position": "Shift Mgr",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Matthew Gross",
+          "position": "Shift Mgr",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Roxana Godinez",
+          "position": "Shift Mgr",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Olimpia Cruz",
+          "position": "Shift Mgr",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Sharnett Reed",
+          "position": "Shift Mgr",
+          "hours": "",
+          "comments": ""
+        }
+      ]
+    },
+    {
+      "store": "7276",
+      "week": "Week of 11/23-11/29",
+      "notes": "",
+      "people": [
+        {
+          "name": "Alex Antunez",
+          "position": "Crew Trainer",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Angelica Jimenez",
+          "position": "Area Mgr",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Blanca Benitez",
+          "position": "Crew Trainer",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Brian Argueta",
+          "position": "Crew Trainer",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Carolina Zayas",
+          "position": "Shift Mgr",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Chelsey Graves",
+          "position": "Gen Mgr",
+          "hours": "",
+          "comments": "Schedules/ITS set up"
+        },
+        {
+          "name": "Christopher Thomas",
+          "position": "Shift Mgr",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Delmys Bardales Cruz",
+          "position": "Crew Trainer",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Dominic Singletary",
+          "position": "Area Mgr",
+          "hours": "3",
+          "comments": "Meet with Rosa 11/24 at 10am"
+        },
+        {
+          "name": "Graciela Cruz Cruz",
+          "position": "Shift Mgr",
+          "hours": "2",
+          "comments": "Complete DL curriculum"
+        },
+        {
+          "name": "Griselda Argueta",
+          "position": "Asst Mgr",
+          "hours": "3",
+          "comments": "Inventory+Truck orders"
+        },
+        {
+          "name": "Pedro Lopez",
+          "position": "Shift Mgr",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Romario Landaverde Gomez",
+          "position": "Area Mgr",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Roshunda Potter",
+          "position": "Crew Trainer",
+          "hours": "1",
+          "comments": "ITS Training"
+        }
+      ]
+    },
+    {
+      "store": "11237",
+      "week": "Week of 11/23-11/29",
+      "notes": "Cleanliness 11/23 at 9:30am",
+      "people": [
+        {
+          "name": "Claudia Hernandez",
+          "position": "Shift Mgr",
+          "hours": "2",
+          "comments": "Inventory/ Truck order"
+        },
+        {
+          "name": "Daniela Ramos",
+          "position": "Crew Trainer",
+          "hours": "1",
+          "comments": "ITS Training"
+        },
+        {
+          "name": "Erika L Velazquez Morales",
+          "position": "Area Mgr",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Jameca McDougal",
+          "position": "Crew Trainer",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Jennifer Martinez",
+          "position": "Area Mgr",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Judith Sanchez",
+          "position": "Shift Mgr",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Kinslyn Villalobos Reyes",
+          "position": "Shift Mgr",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Leili Martinez Rios",
+          "position": "Area Mgr",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Lesly Ramirez",
+          "position": "Gen Mgr",
+          "hours": "",
+          "comments": "Schedules"
+        },
+        {
+          "name": "Litzy H Rodriguez",
+          "position": "Asst Mgr",
+          "hours": "2",
+          "comments": "Training schedules/ITS set up"
+        },
+        {
+          "name": "London Martin",
+          "position": "Crew Trainer",
+          "hours": "2",
+          "comments": "Meet with Erika 11/23 at 3:00pm"
+        },
+        {
+          "name": "Miguelina Gomez",
+          "position": "Crew Trainer",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Rosa Delmy Portillo",
+          "position": "Shift Mgr",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Rosa Rodriguez",
+          "position": "Shift Mgr",
+          "hours": "",
+          "comments": ""
+        }
+      ]
+    },
+    {
+      "store": "11350",
+      "week": "Week of 11/23-11/29",
+      "notes": "",
+      "people": [
+        {
+          "name": "Christopher Carter",
+          "position": "Asst Mgr",
+          "hours": "2+2",
+          "comments": "Inventory/ Complete the DL curriculum"
+        },
+        {
+          "name": "Dalila Guzman",
+          "position": "Area Mgr",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Estibaly Martinez",
+          "position": "Crew Trainer",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Gloria Herrera Martinez",
+          "position": "Crew Trainer",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Hailey Rayman",
+          "position": "Crew Trainer",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Ivisol Lopez",
+          "position": "Shift Mgr",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Lorena Gonzalez",
+          "position": "Crew Trainer",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Madison Friesl",
+          "position": "Gen Mgr",
+          "hours": "",
+          "comments": "Schedules/ITS set up"
+        },
+        {
+          "name": "Maria Martinez Pineda",
+          "position": "Crew Trainer",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Maritza Flores",
+          "position": "Shift Mgr",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Megan O'keeffe",
+          "position": "Area Mgr",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Nelsey Suriano",
+          "position": "Crew Trainer",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Norma Orellana Martinez",
+          "position": "Area Mgr",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Raquel Cartajena",
+          "position": "Area Mgr",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Reina Herrera de Arce",
+          "position": "Area Mgr",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Ren Culbreath",
+          "position": "Shift Mgr",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Walter Hook III",
+          "position": "Shift Mgr",
+          "hours": "",
+          "comments": ""
+        }
+      ]
+    },
+    {
+      "store": "12956",
+      "week": "Week of 11/23-11/29",
+      "notes": "Cleanliness on 11/25 at 9:30am",
+      "people": [
+        {
+          "name": "Anthony Armstrong",
+          "position": "Shift Mgr",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Araceli Garcia",
+          "position": "Asst Mgr",
+          "hours": "2",
+          "comments": "Inventory"
+        },
+        {
+          "name": "Donnette Thigpen",
+          "position": "Gen Mgr",
+          "hours": "",
+          "comments": "Schedules/ITS set up"
+        },
+        {
+          "name": "Iris Soriano",
+          "position": "Shift Mgr",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Javier Perez",
+          "position": "Crew Trainer",
+          "hours": "1",
+          "comments": "ITS Training"
+        },
+        {
+          "name": "Maria Sanchez",
+          "position": "Crew Trainer",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Milagro Rodriguez",
+          "position": "Shift Mgr",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Mirian Bonilla",
+          "position": "Crew Trainer",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Regina Orellana",
+          "position": "Crew Trainer",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Rosa Cruz Zelaya",
+          "position": "Crew Trainer",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Umar Mahaman Lawan",
+          "position": "Crew Trainer",
+          "hours": "",
+          "comments": ""
+        }
+      ]
+    },
+    {
+      "store": "12958",
+      "week": "Week of 11/23-11/29",
+      "notes": "",
+      "people": [
+        {
+          "name": "Ada Sanchez",
+          "position": "Crew Trainer",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Celia Argueta",
+          "position": "Crew Trainer",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Crystal Perez",
+          "position": "Crew Trainer",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Jose Pietrera Torres",
+          "position": "Crew Trainer",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Joselyn Bunay",
+          "position": "Shift Mgr",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Julio Morales",
+          "position": "Shift Mgr",
+          "hours": "2",
+          "comments": "Complete the DL curriculum"
+        },
+        {
+          "name": "Laura Gaspar",
+          "position": "Gen Mgr",
+          "hours": "",
+          "comments": "Schedules"
+        },
+        {
+          "name": "Norma Cruz",
+          "position": "Asst Mgr",
+          "hours": "3",
+          "comments": "Inventory / Truck orders"
+        },
+        {
+          "name": "Norma Garcia Beltran",
+          "position": "Shift Mgr",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Tatiana Orellana",
+          "position": "Shift Mgr",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Telma Garcia",
+          "position": "Crew Trainer",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Victor Garcia",
+          "position": "Crew Trainer",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Wendy Orellana Amaya",
+          "position": "Area Mgr",
+          "hours": "",
+          "comments": ""
+        }
+      ]
+    },
+    {
+      "store": "22171",
+      "week": "Week of 11/23-11/29",
+      "notes": "",
+      "people": [
+        {
+          "name": "Anel Gonzalez Urosa",
+          "position": "Gen Mgr",
+          "hours": "",
+          "comments": "Schedules"
+        },
+        {
+          "name": "Aracely Sosa Huerta",
+          "position": "Crew Trainer",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Claudia Flores",
+          "position": "Crew Trainer",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Daniela Galvez",
+          "position": "Shift Mgr",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Danny Bautista",
+          "position": "Crew Trainer",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Evelyn Carcamo",
+          "position": "Crew Trainer",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Javier Galvez Garcia",
+          "position": "Crew Trainer",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Katelin Martinez",
+          "position": "Shift Mgr",
+          "hours": "1",
+          "comments": "ITS set up"
+        },
+        {
+          "name": "Kathia Carranza",
+          "position": "Shift Mgr",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Norma Copland",
+          "position": "Crew Trainer",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Reymunda Mendoza",
+          "position": "Shift Mgr",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Roxana Guevara",
+          "position": "Asst Mgr",
+          "hours": "3",
+          "comments": "Inventory/ Truck orders"
+        },
+        {
+          "name": "Vilma Benitez Cuchilla",
+          "position": "Crew Trainer",
+          "hours": "",
+          "comments": ""
+        }
+      ]
+    },
+    {
+      "store": "28182",
+      "week": "Week of 11/23-11/29",
+      "notes": "",
+      "people": [
+        {
+          "name": "Brenda Ardon",
+          "position": "Shift Mgr",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Cristabel Galdamez",
+          "position": "Crew Trainer",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Eva Canales",
+          "position": "Crew Trainer",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Jabrea Sturdivant",
+          "position": "Crew Trainer",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Judith Hernandez",
+          "position": "Area Mgr",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Maria Ardon Carbajal",
+          "position": "Area Mgr",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Maria Benitez",
+          "position": "Crew Trainer",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Mario Carbajal",
+          "position": "Asst Mgr",
+          "hours": "2+2",
+          "comments": "Schedules/Complete DL curriculum"
+        },
+        {
+          "name": "Medardo Luna",
+          "position": "Shift Mgr",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Richard Fields",
+          "position": "Gen Mgr",
+          "hours": "",
+          "comments": "Inventory/truck orders"
+        },
+        {
+          "name": "Tiffany Sullivan",
+          "position": "Shift Mgr",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Valeria Carbajal",
+          "position": "Shift Mgr",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Yamilett Benitez",
+          "position": "Area Mgr",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Yessenia Ventura",
+          "position": "Crew Trainer",
+          "hours": "",
+          "comments": ""
+        }
+      ]
+    },
+    {
+      "store": "33853",
+      "week": "Week of 11/23-11/29",
+      "notes": "Cleanliness on 11/19 at 9:30am",
+      "people": [
+        {
+          "name": "Angie Canales",
+          "position": "Shift Mgr",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Emily Rodriguez",
+          "position": "Crew Trainer",
+          "hours": "1",
+          "comments": "ITS Training"
+        },
+        {
+          "name": "Jordy Pinel",
+          "position": "Shift Mgr",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Jose Avelar",
+          "position": "Shift Mgr",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Maria del Cid",
+          "position": "Area Mgr",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Nasir Brown",
+          "position": "Area Mgr",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Noemi Guzman",
+          "position": "Area Mgr",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Ruth Sanchez",
+          "position": "Area Mgr",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Yesenia Aleman",
+          "position": "Gen Mgr",
+          "hours": "",
+          "comments": "Schedules/ITS set up/Inventory"
+        },
+        {
+          "name": "Yosari M Espinoza",
+          "position": "Shift Mgr",
+          "hours": "",
+          "comments": ""
+        }
+      ]
+    },
+    {
+      "store": "33965",
+      "week": "Week of 11/23-11/29",
+      "notes": "",
+      "people": [
+        {
+          "name": "Martina Torres",
+          "position": "Area Mgr",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Yornely Reyes",
+          "position": "Area Mgr",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Elizabeth Stein",
+          "position": "Asst Mgr",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Jennifer Knoerlein",
+          "position": "Asst Mgr",
+          "hours": "2+2",
+          "comments": "Schedules/ Complete DL curriculum"
+        },
+        {
+          "name": "Berenice Moratin",
+          "position": "Crew Trainer",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Jackelin Ventura",
+          "position": "Crew Trainer",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Mercy Orellana",
+          "position": "Crew Trainer",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Fatima Perez",
+          "position": "Gen Mgr",
+          "hours": "",
+          "comments": "ITS set up"
+        },
+        {
+          "name": "Alejandro Castro",
+          "position": "Shift Mgr",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Arsilia de Leon",
+          "position": "Shift Mgr",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Bertha Bautista",
+          "position": "Shift Mgr",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Bertha Tejeda",
+          "position": "Shift Mgr",
+          "hours": "",
+          "comments": ""
+        },
+        {
+          "name": "Dorilys Gomez Lopez",
+          "position": "Shift Mgr",
+          "hours": "2+2",
+          "comments": "Inventory/Complete DL curriculum"
+        },
+        {
+          "name": "Lori Flowers",
+          "position": "Shift Mgr",
+          "hours": "",
+          "comments": ""
+        }
+      ]
+    }
+  ]
+}

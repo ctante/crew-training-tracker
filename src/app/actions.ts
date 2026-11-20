@@ -34,6 +34,7 @@ import {
 } from "@/lib/data";
 import { access, loadRoleDefaults, requireAdmin } from "@/lib/access";
 import { effectivePermissions, isPermission, isUserRole, type Permission, type UserRole } from "@/lib/permissions";
+import { copyDevelopmentWeek, importDevelopmentRows, parseDevelopmentCsv, saveDevelopmentWeek } from "@/lib/development";
 import { matchUserLogin, resetUserPermissions, saveAppUser, saveRoleDefaults, type UserDraft } from "@/lib/users";
 import { prisma } from "@/lib/db";
 import { googleSheetsDevelopmentReportSource } from "@/lib/roster/google-sheets";
@@ -442,6 +443,63 @@ export async function setStorePasswordAction(formData: FormData) {
     redirect(`/admin/access?error=${encodeURIComponent(message(error))}#store-${storeId}`);
   }
   redirect(`/admin/access?saved=1#store-${storeId}`);
+}
+
+function developmentPath(week: string, store: string, position: string, extra?: Record<string, string>) {
+  const params = new URLSearchParams();
+  if (week) params.set("week", week);
+  if (store) params.set("store", store);
+  if (position) params.set("position", position);
+  for (const [key, value] of Object.entries(extra ?? {})) {
+    if (value) params.set(key, value);
+  }
+  const text = params.toString();
+  return text ? `/development?${text}` : "/development";
+}
+
+export async function saveDevelopmentAction(formData: FormData) {
+  const week = String(formData.get("week") || "");
+  const store = String(formData.get("store") || "");
+  const position = String(formData.get("position") || "");
+  try {
+    await saveDevelopmentWeek(week, formData);
+  } catch (error) {
+    redirect(developmentPath(week, store, position, { error: message(error) }));
+  }
+  refreshAll();
+  redirect(developmentPath(week, store, position, { saved: "1" }));
+}
+
+export async function copyDevelopmentAction(formData: FormData) {
+  const week = String(formData.get("week") || "");
+  const store = String(formData.get("store") || "");
+  const position = String(formData.get("position") || "");
+  const numbers = String(formData.get("stores") || "").split(",").filter(Boolean);
+  try {
+    await copyDevelopmentWeek(week, numbers);
+  } catch (error) {
+    redirect(developmentPath(week, store, position, { error: message(error) }));
+  }
+  refreshAll();
+  redirect(developmentPath(week, store, position, { saved: "1" }));
+}
+
+export async function importDevelopmentAction(formData: FormData) {
+  const week = String(formData.get("week") || "");
+  const store = String(formData.get("store") || "");
+  const position = String(formData.get("position") || "");
+  try {
+    const file = formData.get("file");
+    const csv = file instanceof File ? await file.text() : String(formData.get("csv") || "");
+    const rows = parseDevelopmentCsv(csv, week);
+    const result = await importDevelopmentRows(rows);
+    refreshAll();
+    const unmatched = result.unmatched.map((row) => `${row.storeNumber} ${row.name}`).slice(0, 12).join("; ");
+    const notice = `${result.entries} entries imported.${unmatched ? ` Unmatched: ${unmatched}` : ""}`;
+    redirect(developmentPath(week, store, position, { notice }));
+  } catch (error) {
+    redirect(developmentPath(week, store, position, { error: message(error) }));
+  }
 }
 
 export async function resetSampleAction(formData: FormData) {
