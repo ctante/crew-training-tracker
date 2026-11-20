@@ -4,7 +4,7 @@ import { addCatalogModule, addSecondPath, commitImport, createTrainee, deleteTra
 import { parseModuleLinks } from "../src/lib/drive";
 import { spanishTextUpdate } from "../src/lib/translate";
 import { getReports } from "../src/lib/reports";
-import { linkEmployees, mapJobTitle, namesMatch, parseRosterCsv, syncEmployeeSnapshot, uniqueNameMatches } from "../src/lib/employees";
+import { chooseDisplayName, linkEmployees, mapJobTitle, namesMatch, parseRosterCsv, syncEmployeeSnapshot, titleCasePersonName, uniqueNameMatches } from "../src/lib/employees";
 import { prisma } from "../src/lib/db";
 import { daysBetween, formatLongDate, parseLooseDate, selectReportStores, sessionWindow } from "../src/lib/format";
 import { addDevelopmentPerson, convertHours, deactivateDevelopmentPerson, developmentHours, formatHourTotal, importDevelopmentRows, mondayOf, parseWeekLabel, preferredWeek, restoreDevelopmentPerson, sortTaskLabels, updateDevelopmentPerson, weekLabel } from "../src/lib/development";
@@ -21,6 +21,18 @@ async function main() {
   assert.equal(mapJobTitle("CERT. SWING MGR."), "Cert. Swing Mgr.");
   assert.equal(mapJobTitle("CREW PERSON"), "Crew Person");
   assert.equal(mapJobTitle("DEPT MGR III W/ CREW PUNCHES"), "Dept Mgr III W/ Crew Punches");
+  assert.equal(titleCasePersonName("Noris Cruz rodriguez"), "Noris Cruz Rodriguez");
+  assert.equal(titleCasePersonName("Walter Hook iii"), "Walter Hook III");
+  assert.equal(titleCasePersonName("Jameca Mcdougal"), "Jameca McDougal");
+  assert.equal(titleCasePersonName("Makenzie Mccracken"), "Makenzie McCracken");
+  assert.equal(titleCasePersonName("Maria de la Cruz"), "Maria de la Cruz");
+  assert.equal(titleCasePersonName("Blanca Antillon de burgos"), "Blanca Antillon de Burgos");
+  assert.equal(titleCasePersonName("Megan O'keeffe"), "Megan O'Keeffe");
+  assert.equal(titleCasePersonName("Bryan Camacho-arias"), "Bryan Camacho-Arias");
+  assert.equal(titleCasePersonName("William Long jr"), "William Long Jr");
+  assert.equal(titleCasePersonName("Jesus Tamayo macias"), "Jesus Tamayo Macias");
+  assert.equal(chooseDisplayName("Noris Cruz rodriguez", "Noris Cruz Rodriguez"), "Noris Cruz Rodriguez");
+  assert.equal(chooseDisplayName("Noris Cruz rodriguez", "Noris Cruz rodriguez"), "Noris Cruz Rodriguez");
   const feed = parseRosterCsv("Store,Name,Job Title\n5207,Alex Rivera,PRIMARY MAIN. PERSON\n");
   assert.equal(feed[0]?.position, "Crew Person");
   assert.equal(feed[0]?.store, "5207");
