@@ -111,6 +111,16 @@ export function UserForm({
       ) : manyStores ? (
         <fieldset>
           <legend className="text-sm font-semibold">Restaurants</legend>
+          <div className="mt-2 flex gap-2">
+            <button className={ghostButton} type="button" onClick={() => setStoreIds(stores.map((store) => store.id))}>
+              Select All
+              <span className="ml-2 text-xs font-normal">Seleccionar todo</span>
+            </button>
+            <button className={ghostButton} type="button" onClick={() => setStoreIds([])}>
+              Clear All
+              <span className="ml-2 text-xs font-normal">Borrar todo</span>
+            </button>
+          </div>
           <div className="mt-2 flex flex-wrap gap-2">
             {stores.map((store) => (
               <label key={store.id} className="inline-flex min-h-11 items-center gap-2 rounded-full border border-line bg-paper px-3 text-sm font-semibold">

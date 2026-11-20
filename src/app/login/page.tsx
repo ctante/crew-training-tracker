@@ -21,7 +21,7 @@ export default async function LoginPage({
       <div aria-hidden className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/50 to-black/75" />
       <div className="relative w-full max-w-md rounded-3xl border border-white bg-white p-6 text-ink shadow-2xl sm:p-8">
         <p className="text-xs font-bold uppercase tracking-[0.18em] text-brick">Individual Training System (ITS)</p>
-        <h1 className="mt-2 font-display text-4xl text-ink">Team sign-in</h1>
+        <h1 className="mt-2 font-display text-4xl text-ink">Team Sign-In</h1>
         <p className="mt-2 text-sm leading-6 text-ink/80">
           Sign in with your username and password. For the admin password or a restaurant password, leave the username blank.
         </p>

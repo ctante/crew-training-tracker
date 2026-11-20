@@ -1,5 +1,6 @@
 import { prisma } from "../src/lib/db";
 import { importBundledDevelopmentSheet } from "../src/lib/development";
+import { linkEmployees } from "../src/lib/employees";
 import { seedCatalog, seedDatabase, seedSampleContent } from "../src/lib/seed-run";
 
 async function main() {
@@ -22,6 +23,10 @@ async function main() {
   if (process.env.VERCEL_GIT_COMMIT_REF === "beta") {
     await importBundledDevelopmentSheet();
   }
+  const linked = await linkEmployees();
+  console.log(
+    `Employees linked: trainees ${linked.traineesLinked}, trainers ${linked.trainersLinked}, ambiguous trainees ${linked.traineesAmbiguous}, ambiguous trainers ${linked.trainersAmbiguous}.`,
+  );
   const paths = await prisma.trainee.groupBy({ by: ["path"], _count: { _all: true } });
   const summary = paths.map((row) => `${row.path ?? "unset"}=${row._count._all}`).join(", ");
   console.log(`Training paths: ${summary || "none"}.`);

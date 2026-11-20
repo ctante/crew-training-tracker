@@ -92,6 +92,29 @@ A single trainee tab exports as `Module, Time, Videos, Credit, Date, Trainer, Co
 
 The all-restaurant export adds store, trainee, language, position, start date, status, section, completed date, and notes. Duplicate module names (Fries, Hashbrowns, the assembly rows) match on name plus time.
 
+## Employee roster sync
+
+`POST /api/roster/sync` replaces the people at the restaurants included in the body. Authorize it with `Authorization: Bearer <SYNC_TOKEN>`. The token is not written to logs. A missing token returns 503. A wrong token returns 401.
+
+Send a JSON array. Each object is one employee:
+
+```json
+[
+  { "store": "05207", "employeeId": "qsr-1001", "name": "Alex Rivera", "position": "Crew" },
+  { "store": "05207", "name": "Jordan Lee", "position": "Shift Mgr" }
+]
+```
+
+`store` is the restaurant number. `name` is required. `employeeId` and `position` are optional. A person with `employeeId` matches that id at the restaurant, or a row at that restaurant with the same name and no id yet. Otherwise the match is the restaurant plus the name, ignoring case and extra spaces.
+
+People already there are updated. A person who was inactive and appears again is reactivated. A new name is added. Anyone at those restaurants who is missing from the array is marked inactive and is not deleted. Restaurants that are absent from the array are left alone. Unknown restaurant numbers are ignored.
+
+```json
+{ "ok": true, "added": 1, "updated": 1, "deactivated": 0, "reactivated": 0 }
+```
+
+The beta database starts with an empty Employee table. Existing trainees and trainers are linked only when one employee at that restaurant has the same normalized name. If two employees share a name, nobody is linked from that name, and unlinked people stay visible.
+
 ## Conventions
 
 Grouped lists and long lists start collapsed. Each header shows a count. Expand all and Collapse all sit above the list. Print still shows the contents. New grouped lists follow the same pattern.

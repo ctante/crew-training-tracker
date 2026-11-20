@@ -4,6 +4,7 @@ import { addCatalogModule, addSecondPath, commitImport, createTrainee, deleteTra
 import { parseModuleLinks } from "../src/lib/drive";
 import { spanishTextUpdate } from "../src/lib/translate";
 import { getReports } from "../src/lib/reports";
+import { linkEmployees, syncEmployeeSnapshot } from "../src/lib/employees";
 import { prisma } from "../src/lib/db";
 import { daysBetween, formatLongDate, parseLooseDate, selectReportStores, sessionWindow } from "../src/lib/format";
 import { addDevelopmentPerson, convertHours, deactivateDevelopmentPerson, developmentHours, formatHourTotal, importDevelopmentRows, mondayOf, parseWeekLabel, preferredWeek, restoreDevelopmentPerson, sortTaskLabels, updateDevelopmentPerson, weekLabel } from "../src/lib/development";
@@ -883,6 +884,36 @@ Zed Unqualified,05207,Shift Manager,No
   } finally {
     await prisma.staff.delete({ where: { id: rosterPerson.id } });
   }
+
+  const syncStore = await prisma.store.findFirstOrThrow({ orderBy: { number: "asc" } });
+  const firstSync = await syncEmployeeSnapshot([
+    { store: syncStore.number, employeeId: "self-check-1", name: "Sync Person", position: "Crew" },
+  ]);
+  assert.equal(firstSync.added, 1);
+  const secondSync = await syncEmployeeSnapshot([
+    { store: syncStore.number, employeeId: "self-check-2", name: "Other Sync", position: "Crew" },
+  ]);
+  assert.equal(secondSync.added, 1);
+  assert.equal(secondSync.deactivated, 1);
+  const thirdSync = await syncEmployeeSnapshot([
+    { store: syncStore.number, employeeId: "self-check-1", name: "Sync Person", position: "Crew" },
+    { store: syncStore.number, employeeId: "self-check-2", name: "Other Sync", position: "Crew" },
+  ]);
+  assert.equal(thirdSync.reactivated, 1);
+  const linkTrainee = await prisma.trainee.create({
+    data: { storeId: syncStore.id, name: "Sync Person", startDate: "2026-11-01", language: "en", status: "ACTIVE" },
+  });
+  const linked = await linkEmployees();
+  assert.equal(linked.traineesLinked >= 1, true);
+  const linkedRow = await prisma.trainee.findUniqueOrThrow({ where: { id: linkTrainee.id } });
+  assert.ok(linkedRow.employeeId);
+  await prisma.employee.create({
+    data: { storeId: syncStore.id, name: "Sync Person", position: "Crew", source: "manual" },
+  });
+  const ambiguous = await linkEmployees();
+  assert.equal(ambiguous.traineesAmbiguous >= 1, true);
+  await prisma.trainee.delete({ where: { id: linkTrainee.id } });
+  await prisma.employee.deleteMany({ where: { storeId: syncStore.id, name: { in: ["Sync Person", "Other Sync"] } } });
 
   const paths = await prisma.trainee.groupBy({ by: ["path"], _count: { _all: true } });
   console.log("Local path counts:", paths.map((row) => `${row.path ?? "unset"}=${row._count._all}`).join(", "));

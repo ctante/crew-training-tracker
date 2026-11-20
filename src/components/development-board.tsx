@@ -81,7 +81,7 @@ export function DevelopmentBoard({
       </div>
       {addingWork && canEdit ? (
         <form action={addDevelopmentWorkAction} className="mb-4 rounded-3xl border border-line bg-card p-4 print:hidden">
-          <h2 className="font-display text-2xl">Add work</h2>
+          <h2 className="font-display text-2xl">Add Work</h2>
           <p className="mt-1 text-sm text-ink/70">Records hours, a development activity, or a comment for someone already on the roster.</p>
           <input type="hidden" name="week" value={week} />
           <input type="hidden" name="returnStore" value={store} />
@@ -195,7 +195,7 @@ export function DevelopmentBoard({
                 </button>
                 <div className={expanded ? "px-4 pb-4" : "hidden px-4 pb-4 print:block"}>
                   <div className="text-sm">
-                    <p className="font-semibold">Store notes</p>
+                    <p className="font-semibold">Store Notes</p>
                     {showAll ? (
                       <textarea className={`${fieldClass} mt-1 min-h-20`} name={`notes:${item.id}`} defaultValue={item.notes} />
                     ) : (

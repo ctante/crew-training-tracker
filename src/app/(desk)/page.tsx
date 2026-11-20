@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import { CollapsibleSections } from "@/components/collapsible-sections";
+import { InactiveToggle } from "@/components/inactive-toggle";
 import { DateRangeFilters } from "@/components/date-range-filters";
 import { FilterSelect } from "@/components/filter-select";
 import { TraineeSearch } from "@/components/trainee-search";
 import { Flag, PageHeader, ProgressBar } from "@/components/ui";
 import { languageName, SECTION_TITLES } from "@/lib/constants";
+import { access } from "@/lib/access";
 import { getDashboard, getScheduledSessions } from "@/lib/data";
 import { formatMinutes, formatShortDate, one, storeLabel, withParams } from "@/lib/format";
 import { sessionSurface } from "@/lib/session-tone";
@@ -30,8 +32,10 @@ export default async function HomePage({
   const from = one(params.from);
   const to = one(params.to);
   const sessionTab = one(params.tab) || "scheduled";
-  const data = await getDashboard({ storeNumber, status, flag, query });
-  const sessions = view === "sessions" ? await getScheduledSessions({ storeNumber, range, from, to, query }) : null;
+  const who = await access();
+  const showInactive = who.role === "admin" && one(params.inactive) === "1";
+  const data = await getDashboard({ storeNumber, status, flag, query, showInactive });
+  const sessions = view === "sessions" ? await getScheduledSessions({ storeNumber, range, from, to, query, showInactive }) : null;
   const current = { store: storeNumber, status: status === "ACTIVE" ? "" : status, flag, q: query };
   const sessionQuery = {
     view: "sessions",
@@ -47,16 +51,19 @@ export default async function HomePage({
     <div>
       <PageHeader
         kicker={formatShortDate(data.today)}
-        title="Training board"
+        title="Training Board"
         description="Foundation plus Service or Production. Overdue sessions and stalled trainees rise to the top."
         actions={
           data.canManageTrainees ? (
             <Link href="/trainees/new" className="hidden min-h-11 items-center rounded-full bg-brick px-4 text-sm font-semibold text-white lg:inline-flex">
-              Add trainee
+              Add Trainee
             </Link>
           ) : null
         }
       />
+      <div className="mb-3">
+        <InactiveToggle admin={who.role === "admin"} on={showInactive} path="/" query={view === "sessions" ? sessionQuery : current} />
+      </div>
       {reset ? (
         <p className="mb-4 rounded-2xl border border-amber-300 bg-sun/50 px-4 py-3 text-sm text-sun-deep">
           Sample trainees, restaurants, and the module path were restored.

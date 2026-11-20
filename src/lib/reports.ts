@@ -3,6 +3,7 @@ import { access, allows, canSeeManyStores, visibleStoreNumbers } from "./access"
 import { toCsv } from "./csv";
 import { SECTION_TITLES, type SectionId } from "./constants";
 import { prisma } from "./db";
+import { visibleLinkedWhere } from "./employees";
 import { daysBetween, selectReportStores, sessionWindow, todayIso } from "./format";
 import { summarize, trainingPaths, type TrainingPath } from "./progress";
 
@@ -98,6 +99,7 @@ export async function getReports(filters: {
   range?: string;
   from?: string;
   to?: string;
+  showInactive?: boolean;
 }) {
   const who = await access();
   if (!allows(who, "reports")) redirect("/");
@@ -117,7 +119,7 @@ export async function getReports(filters: {
     known,
   });
   const trainees = await prisma.trainee.findMany({
-    where: { store: { number: { in: selected } } },
+    where: { store: { number: { in: selected } }, ...visibleLinkedWhere(Boolean(filters.showInactive)) },
     include: { store: true, modules: { include: { module: true } } },
     orderBy: [{ store: { number: "asc" } }, { name: "asc" }],
   });

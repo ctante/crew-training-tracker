@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { addDevelopmentPersonAction } from "@/app/actions";
+import { EmployeeNameField } from "@/components/employee-name-field";
 import { AdminNav } from "@/components/admin-nav";
 import { RosterPeople } from "@/components/roster-people";
 import { Flash, PageHeader, fieldClass, ghostButton, primaryButton } from "@/components/ui";
@@ -77,10 +78,7 @@ export default async function RosterPage({
                 ))}
               </select>
             </label>
-            <label className="text-sm font-semibold">
-              Name
-              <input className={`${fieldClass} mt-1`} name="name" required autoComplete="off" />
-            </label>
+            <EmployeeNameField storeField="storeId" positionField="position" label="Name" />
             <label className="text-sm font-semibold">
               Position
               <select className={`${fieldClass} mt-1`} name="position" defaultValue="Crew Trainer" required>

@@ -19,7 +19,7 @@ export default async function ImportPage() {
       <AdminNav current="/admin/import" />
       <PageHeader
         kicker="Sheets"
-        title="Import and export"
+        title="Import and Export"
         description="A bulk sheet uses Store Number, Trainee, Language, Start Date, Section, Module, Time, Date, Trainer, Completed. Language and Time pick the right module when the name is shared by a video and a floor session. A single ITS tab uses Module, Time, Videos, Credit, Date, Trainer, Completed."
       />
       <div className="mb-5 flex flex-wrap gap-2">

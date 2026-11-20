@@ -46,6 +46,7 @@ import {
   saveDevelopmentWeek,
   updateDevelopmentPerson,
 } from "@/lib/development";
+import { addEmployee, importEmployeeCsv, setEmployeeActive, updateEmployee } from "@/lib/employees";
 import { matchUserLogin, resetUserPermissions, saveAppUser, saveRoleDefaults, type UserDraft } from "@/lib/users";
 import { prisma } from "@/lib/db";
 import { SESSION_COOKIE, createSessionToken, safeNextPath, sessionCookieOptions } from "@/lib/session";
@@ -432,6 +433,74 @@ export async function restoreDevelopmentPersonAction(formData: FormData) {
   }
   refreshAll();
   redirect(developmentReturn(formData, { saved: "restored" }));
+}
+
+function employeePath(formData: FormData, extra: Record<string, string>) {
+  const params = new URLSearchParams();
+  const store = String(formData.get("returnStore") || "");
+  const position = String(formData.get("returnPosition") || "");
+  const query = String(formData.get("returnQ") || "");
+  if (store && store !== "all") params.set("store", store);
+  if (position && position !== "all") params.set("position", position);
+  if (query) params.set("q", query);
+  if (formData.get("inactive") === "1") params.set("inactive", "1");
+  for (const [key, value] of Object.entries(extra)) {
+    if (value) params.set(key, value);
+  }
+  const text = params.toString();
+  return text ? `/admin/employees?${text}` : "/admin/employees";
+}
+
+export async function addEmployeeAction(formData: FormData) {
+  try {
+    await addEmployee({
+      storeId: String(formData.get("storeId") || ""),
+      name: String(formData.get("name") || ""),
+      position: String(formData.get("position") || ""),
+    });
+  } catch (error) {
+    redirect(employeePath(formData, { error: message(error) }));
+  }
+  refreshAll();
+  redirect(employeePath(formData, { saved: "added" }));
+}
+
+export async function updateEmployeeAction(formData: FormData) {
+  try {
+    await updateEmployee(String(formData.get("id") || ""), {
+      storeId: String(formData.get("storeId") || ""),
+      name: String(formData.get("name") || ""),
+      position: String(formData.get("position") || ""),
+    });
+  } catch (error) {
+    redirect(employeePath(formData, { error: message(error) }));
+  }
+  refreshAll();
+  redirect(employeePath(formData, { saved: "saved" }));
+}
+
+export async function deactivateEmployeeAction(formData: FormData) {
+  try {
+    await setEmployeeActive(String(formData.get("id") || ""), false);
+  } catch (error) {
+    redirect(employeePath(formData, { error: message(error) }));
+  }
+  refreshAll();
+  redirect(employeePath(formData, { saved: "inactive" }));
+}
+
+export async function importEmployeesAction(formData: FormData) {
+  const file = formData.get("file");
+  let notice = "";
+  try {
+    if (!(file instanceof File)) throw new Error("Choose a CSV file.");
+    const result = await importEmployeeCsv(await file.text());
+    notice = `${result.added} added, ${result.updated} updated.`;
+  } catch (error) {
+    redirect(employeePath(formData, { error: message(error) }));
+  }
+  refreshAll();
+  redirect(employeePath(formData, { saved: "imported", notice }));
 }
 
 export async function signInAction(input: { login?: string; password: string; nextPath: string }) {

@@ -43,7 +43,7 @@ export default async function UsersPage({
         ))}
       </div>
       <section className="rounded-3xl border border-line bg-card p-4">
-        <h2 className="font-display text-2xl">Add user</h2>
+        <h2 className="font-display text-2xl">Add User</h2>
         <div className="mt-3">
           <UserForm stores={stores} roles={roles} user={null} canGrant={who.role === "admin"} defaults={defaults} />
         </div>

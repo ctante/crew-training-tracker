@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { CollapsibleSections } from "@/components/collapsible-sections";
+import { InactiveToggle } from "@/components/inactive-toggle";
 import { DateRangeFilters } from "@/components/date-range-filters";
 import { StoreMultiSelect } from "@/components/store-multi-select";
 import { PageHeader, ghostButton } from "@/components/ui";
 import { formatShortDate, many, one, storeLabel, withParams } from "@/lib/format";
+import { access } from "@/lib/access";
 import { getReports, type ReportKind } from "@/lib/reports";
 
 export const dynamic = "force-dynamic";
@@ -14,9 +16,9 @@ const TABS: { id: ReportKind; label: string }[] = [
   { id: "completion", label: "Completion" },
   { id: "overdue", label: "Overdue" },
   { id: "trainers", label: "Trainers" },
-  { id: "time", label: "Time to complete" },
-  { id: "path", label: "Needs a path" },
-  { id: "modules", label: "By module" },
+  { id: "time", label: "Time to Complete" },
+  { id: "path", label: "Needs a Path" },
+  { id: "modules", label: "By Module" },
 ];
 
 export default async function ReportsPage({
@@ -29,12 +31,15 @@ export default async function ReportsPage({
   const requested = many(params.store);
   const entire = one(params.org) === "1" || requested.length === 0;
   const range = one(params.range) || "all";
+  const who = await access();
+  const showInactive = who.role === "admin" && one(params.inactive) === "1";
   const data = await getReports({
     storeNumbers: requested,
     entireOrg: entire,
     range,
     from: one(params.from),
     to: one(params.to),
+    showInactive,
   });
   const query = {
     report,
@@ -66,6 +71,9 @@ export default async function ReportsPage({
           </a>
         }
       />
+      <div className="mb-3">
+        <InactiveToggle admin={who.role === "admin"} on={showInactive} path="/reports" query={query} />
+      </div>
       <div className="mb-4 flex gap-2 overflow-x-auto pb-1">
         {TABS.map((tab) => (
           <Link
@@ -141,9 +149,9 @@ function renderReport(report: ReportKind, data: Awaited<ReturnType<typeof getRep
     return (
       <div className="space-y-6">
         <section>
-          <h2 className="font-display text-2xl">By restaurant</h2>
+          <h2 className="font-display text-2xl">By Restaurant</h2>
           <Table
-            headers={["Store", "Overdue sessions"]}
+            headers={["Store", "Overdue Sessions"]}
             rows={[
               ...data.overdueByStore.map((row) => [storeLabel(row.storeNumber), row.count]),
               [data.completionTotal.storeNumber, data.overdueTotal],
@@ -151,9 +159,9 @@ function renderReport(report: ReportKind, data: Awaited<ReturnType<typeof getRep
           />
         </section>
         <section>
-          <h2 className="font-display text-2xl">By trainer</h2>
+          <h2 className="font-display text-2xl">By Trainer</h2>
           <Table
-            headers={["Store", "Trainer", "Overdue sessions"]}
+            headers={["Store", "Trainer", "Overdue Sessions"]}
             rows={[
               ...data.overdueByTrainer.map((row) => [storeLabel(row.storeNumber), row.label, row.count]),
               [data.completionTotal.storeNumber, "Total", data.overdueTotal],
@@ -233,7 +241,7 @@ function ModuleReport({ rows }: { rows: Awaited<ReturnType<typeof getReports>>["
                     </summary>
                     <div className="mt-3 grid gap-3 sm:grid-cols-2">
                       <NameList title="Completed" names={row.completedNames} />
-                      <NameList title="Not completed" names={row.openNames} />
+                      <NameList title="Not Completed" names={row.openNames} />
                     </div>
                   </details>
                 ))}

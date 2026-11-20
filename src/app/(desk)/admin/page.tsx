@@ -18,13 +18,13 @@ const tiles = [
   },
   {
     href: "/admin/permissions",
-    title: "Role defaults",
+    title: "Role Defaults",
     text: "The permissions a role starts with. Overrides live on each person.",
     show: "admin" as const,
   },
   {
     href: "/admin/access",
-    title: "Store passwords",
+    title: "Store Passwords",
     text: "The shared User login for a restaurant. The username is the restaurant number.",
     show: "store_logins" as const,
   },
@@ -35,6 +35,12 @@ const tiles = [
     show: "roster_import" as const,
   },
   {
+    href: "/admin/employees",
+    title: "Employee Roster",
+    text: "The full restaurant roster. Inactive people stay saved and drop out of the daily pages.",
+    show: "admin" as const,
+  },
+  {
     href: "/admin/modules",
     title: "Modules",
     text: "Add, reorder, or archive modules on the training path.",
@@ -42,7 +48,7 @@ const tiles = [
   },
   {
     href: "/admin/import",
-    title: "Bulk progress",
+    title: "Bulk Progress",
     text: "Import a sheet of trainee progress or export the current file.",
     show: "roster_import" as const,
   },
@@ -87,7 +93,7 @@ export default async function AdminPage({
 
       {who.role === "admin" ? (
       <section className="mt-8 rounded-3xl border border-brick/30 bg-red-50 p-4">
-        <h2 className="font-display text-2xl text-brick-dark">Restore sample data</h2>
+        <h2 className="font-display text-2xl text-brick-dark">Restore Sample Data</h2>
         <p className="mt-1 max-w-2xl text-sm text-brick-dark/80">
           This deletes trainees, progress, module edits, people, and user accounts, then loads the fictional Sample set again.
         </p>

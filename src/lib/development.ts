@@ -13,6 +13,7 @@ import {
   weekLabel,
   type DevelopmentStoreWeek,
 } from "./development-hours";
+import { linkEmployees, visibleLinkedWhere } from "./employees";
 import { addDays, normalizeStoreNumber, todayIso } from "./format";
 
 export {
@@ -220,7 +221,7 @@ async function scopedStores(who: Access, requested?: string) {
   return [store];
 }
 
-export async function getDevelopment(filters: { week?: string; store?: string; position?: string }) {
+export async function getDevelopment(filters: { week?: string; store?: string; position?: string; showInactive?: boolean }) {
   const who = await access();
   if (!allows(who, "view_development")) redirect("/");
   const choices = await scopedStores(who);
@@ -245,7 +246,10 @@ export async function getDevelopment(filters: { week?: string; store?: string; p
   const stores = await scopedStores(who, filters.store);
   const position = filters.position && filters.position !== "all" ? canonicalTrainerPosition(filters.position) : "";
   const staff = await prisma.staff.findMany({
-    where: { storeId: { in: stores.map((store) => store.id) } },
+    where: {
+      storeId: { in: stores.map((store) => store.id) },
+      ...visibleLinkedWhere(Boolean(filters.showInactive)),
+    },
   });
   const weeks = await prisma.developmentWeek.findMany({
     where: { weekStart, storeId: { in: stores.map((store) => store.id) } },
@@ -514,6 +518,7 @@ export async function addDevelopmentPerson(input: { storeId: string; name: strin
       isSample: false,
     },
   });
+  await linkEmployees();
 }
 
 export async function updateDevelopmentPerson(

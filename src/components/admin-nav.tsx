@@ -6,11 +6,12 @@ export async function AdminNav({ current }: { current: string }) {
   const links = [
     { href: "/admin", label: "Overview" },
     allows(who, "users") || who.role === "admin" ? { href: "/admin/users", label: "Users" } : null,
-    who.role === "admin" ? { href: "/admin/permissions", label: "Role defaults" } : null,
-    allows(who, "store_logins") ? { href: "/admin/access", label: "Store passwords" } : null,
+    who.role === "admin" ? { href: "/admin/permissions", label: "Role Defaults" } : null,
+    allows(who, "store_logins") ? { href: "/admin/access", label: "Store Passwords" } : null,
     allows(who, "roster_import") ? { href: "/admin/roster", label: "Trainer / Manager" } : null,
+    who.role === "admin" ? { href: "/admin/employees", label: "Employee Roster" } : null,
     allows(who, "modules") ? { href: "/admin/modules", label: "Modules" } : null,
-    allows(who, "roster_import") ? { href: "/admin/import", label: "Bulk progress" } : null,
+    allows(who, "roster_import") ? { href: "/admin/import", label: "Bulk Progress" } : null,
     who.role === "admin" ? { href: "/admin/development", label: "Development Activity" } : null,
   ].filter((link): link is { href: string; label: string } => Boolean(link));
 

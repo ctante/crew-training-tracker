@@ -18,7 +18,7 @@ const links = [
     icon: PeopleIcon,
     match: (path: string) => path.startsWith("/trainees"),
   },
-  { href: "/path", label: "Path", icon: PathIcon, match: (path: string) => path.startsWith("/path") },
+  { href: "/path", label: "Crew Training Path", icon: PathIcon, match: (path: string) => path.startsWith("/path") },
   {
     href: "/development",
     label: "Development",
