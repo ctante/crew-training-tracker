@@ -67,23 +67,70 @@ export function mapJobTitle(raw: string) {
     .replace(/\b(i{1,3}|iv|vi{0,3}|ix|x)\b/gi, (token) => token.toUpperCase());
 }
 
-export function parseRosterCsv(text: string): SnapshotPerson[] {
-  const table = parseCsv(text);
+const POSITION_HEADERS = [
+  "position",
+  "job title",
+  "primary job title code description",
+  "job title code description",
+  "primary job title",
+];
+const STORE_HEADERS = ["store", "store #", "store number", "location", "restaurant", "restaurant #", "restaurant number"];
+const NAME_HEADERS = ["name", "employee", "employee name"];
+const FIRST_HEADERS = ["first name", "first"];
+const LAST_HEADERS = ["last name", "last"];
+
+function headerKey(value: string) {
+  return value.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function columnIndex(headers: string[], names: string[]) {
+  return names.map((name) => headers.indexOf(headerKey(name))).find((item) => item >= 0) ?? -1;
+}
+
+export function readRosterTable(table: string[][]) {
   if (table.length < 2) throw new Error("The roster file needs a header and at least one person.");
-  const headers = table[0].map((header) => header.trim().toLowerCase());
-  const index = (names: string[]) => names.map((name) => headers.indexOf(name)).find((item) => item >= 0) ?? -1;
-  const storeCol = index(["store", "restaurant", "store number"]);
-  const nameCol = index(["name", "employee"]);
-  const jobCol = index(["job title", "position"]);
-  if (storeCol < 0 || nameCol < 0 || jobCol < 0) {
-    throw new Error("The header needs Store, Name, and Job Title.");
+  const headers = table[0].map(headerKey);
+  const storeCol = columnIndex(headers, STORE_HEADERS);
+  const nameCol = columnIndex(headers, NAME_HEADERS);
+  const firstCol = columnIndex(headers, FIRST_HEADERS);
+  const lastCol = columnIndex(headers, LAST_HEADERS);
+  const jobCol = columnIndex(headers, POSITION_HEADERS);
+  if (storeCol < 0) throw new Error("The header needs a store column: Store, Store #, Location, or Restaurant. Nothing was changed.");
+  if (nameCol < 0 && (firstCol < 0 || lastCol < 0)) {
+    throw new Error("The header needs a name column: Name, Employee Name, or First Name and Last Name. Nothing was changed.");
   }
-  return table.slice(1).flatMap((row) => {
+  if (jobCol < 0) {
+    throw new Error(
+      "The header needs a position column: Position, Job Title, or Primary Job Title Code Description. Nothing was changed.",
+    );
+  }
+  const idCol = columnIndex(headers, ["employee_id", "employee id", "external id"]);
+  const activeCol = columnIndex(headers, ["active"]);
+  const people = table.slice(1).flatMap((row) => {
     const store = (row[storeCol] ?? "").trim();
-    const name = (row[nameCol] ?? "").trim();
-    if (!store || !name) return [];
-    return [{ store, name, position: mapJobTitle(row[jobCol] ?? "") }];
+    const combined = nameCol >= 0 ? (row[nameCol] ?? "").trim() : `${row[firstCol] ?? ""} ${row[lastCol] ?? ""}`.trim();
+    const name = combined.replace(/\s+/g, " ");
+    if (!store || name.length < 2) return [];
+    return [
+      {
+        store,
+        name,
+        position: mapJobTitle(row[jobCol] ?? ""),
+        employeeId: idCol >= 0 ? (row[idCol] ?? "").trim() : "",
+        active: activeCol >= 0 ? activeFlag(row[activeCol]) : true,
+      },
+    ];
   });
+  return people;
+}
+
+export function parseRosterCsv(text: string): SnapshotPerson[] {
+  return readRosterTable(parseCsv(text)).map((row) => ({
+    store: row.store,
+    name: row.name,
+    employeeId: row.employeeId || undefined,
+    position: row.position,
+  }));
 }
 
 export type NameShape = { loose: string; tokens: string[]; significant: string[] };
@@ -151,8 +198,14 @@ export function uniqueNameMatches<T extends { name: string }, U extends { name: 
 export function rosterCsvBody(text: string, contentType: string) {
   const type = contentType.toLowerCase();
   if (type.includes("csv")) return true;
-  const first = text.replace(/^\uFEFF/, "").trimStart().split(/\r?\n/, 1)[0]?.toLowerCase() ?? "";
-  return first.startsWith("store,") && first.includes("name") && (first.includes("job title") || first.includes("position"));
+  const trimmed = text.replace(/^\uFEFF/, "").trimStart();
+  if (trimmed.startsWith("[") || trimmed.startsWith("{")) return false;
+  const first = headerKey(trimmed.split(/\r?\n/, 1)[0] ?? "");
+  return (
+    STORE_HEADERS.some((name) => first.includes(name)) ||
+    FIRST_HEADERS.some((name) => first.includes(name)) ||
+    POSITION_HEADERS.some((name) => first.includes(name))
+  );
 }
 
 export function visibleLinkedWhere(showInactive: boolean) {
@@ -172,6 +225,7 @@ export async function syncEmployeeSnapshot(rows: SnapshotPerson[]) {
   const stores = await prisma.store.findMany();
   const byNumber = new Map(stores.map((store) => [store.number, store]));
   const now = new Date();
+  const blankBefore = await prisma.employee.count({ where: { position: "" } });
   let added = 0;
   let updated = 0;
   let deactivated = 0;
@@ -189,7 +243,7 @@ export async function syncEmployeeSnapshot(rows: SnapshotPerson[]) {
     const name = row.name.trim().replace(/\s+/g, " ");
     if (!store || name.length < 2) continue;
     const externalId = row.employeeId?.trim() || null;
-    const position = mapJobTitle(row.position ?? "").slice(0, 80);
+    const incomingPosition = mapJobTitle(row.position ?? "").slice(0, 80);
     const storedName = (current?: string) => chooseDisplayName(name, current);
     const people = cache.get(store.id) ?? (await prisma.employee.findMany({ where: { storeId: store.id } }));
     cache.set(store.id, people);
@@ -202,7 +256,7 @@ export async function syncEmployeeSnapshot(rows: SnapshotPerson[]) {
         where: { id: match.id },
         data: {
           name: storedName(match.name),
-          position,
+          position: incomingPosition || match.position,
           active: true,
           externalId: externalId ?? match.externalId,
           source: "qsrsoft",
@@ -213,15 +267,21 @@ export async function syncEmployeeSnapshot(rows: SnapshotPerson[]) {
       const renamed = employeeNameKey(match.name) !== employeeNameKey(name);
       if (renamed) {
         corrected += 1;
-        corrections.push({ store: store.number, kind: "employee", fromName: match.name, toName: nextName, position, note: "" });
+        corrections.push({ store: store.number, kind: "employee", fromName: match.name, toName: nextName, position: incomingPosition || match.position, note: "" });
       } else if (match.active) updated += 1;
       else reactivated += 1;
       const seen = seenByStore.get(store.id) ?? new Set<string>();
       seen.add(match.id);
       seenByStore.set(store.id, seen);
-      Object.assign(match, { name: storedName(match.name), externalId: externalId ?? match.externalId, active: true, source: "qsrsoft" });
+      Object.assign(match, {
+        name: storedName(match.name),
+        position: incomingPosition || match.position,
+        externalId: externalId ?? match.externalId,
+        active: true,
+        source: "qsrsoft",
+      });
     } else {
-      pending.push({ storeId: store.id, storeNumber: store.number, name: name.slice(0, 80), position, externalId });
+      pending.push({ storeId: store.id, storeNumber: store.number, name: name.slice(0, 80), position: incomingPosition, externalId });
     }
   }
 
@@ -241,7 +301,7 @@ export async function syncEmployeeSnapshot(rows: SnapshotPerson[]) {
         where: { id: pair.right.id },
         data: {
           name: nextName,
-          position: pair.left.position,
+          position: pair.left.position || pair.right.position,
           active: true,
           externalId: pair.left.externalId ?? pair.right.externalId,
           source: "qsrsoft",
@@ -254,7 +314,7 @@ export async function syncEmployeeSnapshot(rows: SnapshotPerson[]) {
         kind: "employee",
         fromName: pair.right.name,
         toName: nextName,
-        position: pair.left.position,
+        position: pair.left.position || pair.right.position,
         note: "",
       });
       seen.add(pair.right.id);
@@ -323,7 +383,8 @@ export async function syncEmployeeSnapshot(rows: SnapshotPerson[]) {
     });
   }
   const report = await rosterReport();
-  return { added, updated, deactivated, reactivated, corrected, corrections, ambiguous, ...report };
+  const blankAfter = await prisma.employee.count({ where: { position: "" } });
+  return { added, updated, deactivated, reactivated, corrected, corrections, ambiguous, blankBefore, blankAfter, ...report };
 }
 
 async function rosterReport() {
@@ -478,24 +539,10 @@ function activeFlag(value: string | undefined) {
 export async function importEmployeeCsv(csv: string) {
   const who = await access();
   if (who.role !== "admin") throw new Error("Only an admin can import employees.");
-  const table = parseCsv(csv);
-  if (table.length < 2) throw new Error("Add a header row and at least one person.");
-  const headers = table[0].map((header) => header.trim().toLowerCase());
-  const index = (names: string[]) => names.map((name) => headers.indexOf(name)).find((item) => item >= 0) ?? -1;
-  const storeCol = index(["store", "restaurant", "store number"]);
-  const nameCol = index(["name", "employee"]);
-  const positionCol = index(["position", "job title"]);
-  const idCol = index(["employee_id", "employee id", "external id"]);
-  const activeCol = index(["active"]);
-  if (storeCol < 0 || nameCol < 0) throw new Error("The header needs store and name columns.");
-  const snapshot = table.slice(1).map((row) => ({
-    store: row[storeCol] ?? "",
-    name: row[nameCol] ?? "",
-    position: mapJobTitle(positionCol >= 0 ? row[positionCol] ?? "" : ""),
-    employeeId: idCol >= 0 ? row[idCol] ?? "" : "",
-    active: activeCol >= 0 ? activeFlag(row[activeCol]) : true,
-  }));
-  return saveEmployeeRows(snapshot, "manual");
+  const snapshot = readRosterTable(parseCsv(csv));
+  const saved = await saveEmployeeRows(snapshot, "manual");
+  await refreshRosterPositions();
+  return saved;
 }
 
 async function saveEmployeeRows(
@@ -521,7 +568,7 @@ async function saveEmployeeRows(
         where: { id: match.id },
         data: {
           name: display(match.name),
-          position: row.position.trim().slice(0, 80),
+          position: row.position.trim().slice(0, 80) || match.position,
           active: row.active,
           externalId: externalId ?? match.externalId,
           source,

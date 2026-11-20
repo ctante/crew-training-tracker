@@ -132,7 +132,9 @@ export default async function EmployeesPage({
       </form>
       <details className="mb-6 rounded-3xl border border-line bg-card p-4">
         <summary className="cursor-pointer font-semibold">Import CSV</summary>
-        <p className="mt-2 text-sm text-ink/70">Columns: store, name, position. Optional: employee_id, active.</p>
+        <p className="mt-2 text-sm text-ink/70">
+          Columns: Store (or Location), Name (or First Name and Last Name), and Position or Primary Job Title Code Description. A missing position column is rejected. A blank cell does not erase a saved title.
+        </p>
         <form action={importEmployeesAction} className="mt-3 flex flex-wrap items-end gap-3">
           <input type="hidden" name="returnStore" value={storeFilter} />
           <input type="hidden" name="returnPosition" value={positionFilter} />

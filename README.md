@@ -103,6 +103,8 @@ Store,Name,Job Title
 05207,Alex Rivera,PRIMARY MAIN. PERSON
 ```
 
+The position column may also be named `Position`, `Primary Job Title`, `Job Title Code Description`, or `Primary Job Title Code Description`. The store column may be `Store`, `Store #`, `Location`, or `Restaurant`. The name may be `Name`, `Employee Name`, or separate `First Name` and `Last Name` columns. If the position column is missing, the import stops and leaves existing titles alone. A blank position cell does not erase a title that is already saved.
+
 `PRIMARY MAIN. PERSON` and `BACKUP MAINTENANCE PERSON` are stored as `Crew Person`. Other job titles are stored in Title Case, such as `Cert. Swing Mgr.` The file is the active roster. Anyone at those restaurants who is missing from it is marked inactive. There is no employee id in this file, so people match on the restaurant plus the name.
 
 Or send a JSON array. Each object is one employee:
