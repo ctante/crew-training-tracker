@@ -20,6 +20,7 @@ async function main() {
   assert.equal(mapJobTitle("BACKUP MAINTENANCE PERSON"), "Crew Person");
   assert.equal(mapJobTitle("CERT. SWING MGR."), "Cert. Swing Mgr.");
   assert.equal(mapJobTitle("CREW PERSON"), "Crew Person");
+  assert.equal(mapJobTitle("DEPT MGR III W/ CREW PUNCHES"), "Dept Mgr III W/ Crew Punches");
   const feed = parseRosterCsv("Store,Name,Job Title\n5207,Alex Rivera,PRIMARY MAIN. PERSON\n");
   assert.equal(feed[0]?.position, "Crew Person");
   assert.equal(feed[0]?.store, "5207");

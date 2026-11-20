@@ -15,7 +15,10 @@ export function mapJobTitle(raw: string) {
   if (!cleaned) return "";
   const key = cleaned.toUpperCase().replace(/\./g, "").replace(/\s+/g, " ").trim();
   if (CREW_TITLES.has(key)) return "Crew Person";
-  return cleaned.toLowerCase().replace(/(^|[^a-z])([a-z])/g, (_, lead: string, letter: string) => lead + letter.toUpperCase());
+  return cleaned
+    .toLowerCase()
+    .replace(/(^|[^a-z])([a-z])/g, (_, lead: string, letter: string) => lead + letter.toUpperCase())
+    .replace(/\b(i{1,3}|iv|vi{0,3}|ix|x)\b/gi, (token) => token.toUpperCase());
 }
 
 export function parseRosterCsv(text: string): SnapshotPerson[] {
@@ -211,25 +214,28 @@ export async function syncEmployeeSnapshot(rows: SnapshotPerson[]) {
     for (const skip of paired.ambiguous) {
       ambiguous.push({ store: rowsForStore[0]?.storeNumber ?? "", kind: "employee", name: skip.name, candidates: skip.candidates });
     }
-    for (const row of rowsForStore) {
-      if (usedRows.has(row)) continue;
-      const created = await prisma.employee.create({
-        data: {
+    const creating = rowsForStore.filter((row) => !usedRows.has(row));
+    if (creating.length) {
+      await prisma.employee.createMany({
+        data: creating.map((row) => ({
           storeId,
           name: row.name,
           position: row.position,
           active: true,
           externalId: row.externalId,
-          source: "qsrsoft",
+          source: "qsrsoft" as const,
           lastSyncedAt: now,
-        },
+        })),
       });
-      added += 1;
-      people.push(created);
-      seen.add(created.id);
+      added += creating.length;
+    }
+    const refreshed = await prisma.employee.findMany({ where: { storeId } });
+    const createdKeys = new Set(creating.map((row) => employeeNameKey(row.name)));
+    for (const person of refreshed) {
+      if (createdKeys.has(employeeNameKey(person.name))) seen.add(person.id);
     }
     seenByStore.set(storeId, seen);
-    cache.set(storeId, people);
+    cache.set(storeId, refreshed);
   }
 
   for (const [storeId, seen] of seenByStore) {
@@ -266,7 +272,40 @@ export async function syncEmployeeSnapshot(rows: SnapshotPerson[]) {
       ],
     });
   }
-  return { added, updated, deactivated, reactivated, corrected, corrections, ambiguous };
+  const report = await rosterReport();
+  return { added, updated, deactivated, reactivated, corrected, corrections, ambiguous, ...report };
+}
+
+async function rosterReport() {
+  const [employees, trainees, trainers] = await Promise.all([
+    prisma.employee.findMany({ include: { store: true } }),
+    prisma.trainee.findMany({
+      where: { employee: { is: { active: false } } },
+      include: { store: true },
+      orderBy: [{ store: { number: "asc" } }, { name: "asc" }],
+    }),
+    prisma.staff.findMany({
+      where: { employee: { is: { active: false } } },
+      include: { store: true },
+      orderBy: [{ store: { number: "asc" } }, { name: "asc" }],
+    }),
+  ]);
+  const byStore = new Map<string, { active: number; inactive: number }>();
+  for (const person of employees) {
+    const counts = byStore.get(person.store.number) ?? { active: 0, inactive: 0 };
+    if (person.active) counts.active += 1;
+    else counts.inactive += 1;
+    byStore.set(person.store.number, counts);
+  }
+  return {
+    byStore: [...byStore.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([store, counts]) => ({ store, ...counts })),
+    hidden: [
+      ...trainees.map((person) => ({ kind: "trainee", store: person.store.number, name: person.name })),
+      ...trainers.map((person) => ({ kind: "trainer", store: person.store.number, name: person.name })),
+    ],
+  };
 }
 
 async function correctRosterNames(storeIds: string[]) {
