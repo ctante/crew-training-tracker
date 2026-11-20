@@ -2172,6 +2172,18 @@ export async function getRosterPage() {
           position: person.position,
           isGm: person.isGm,
           isSample: person.isSample,
+          active: true,
+        }))
+        .sort(compareTrainers),
+      removed: store.staff
+        .filter((person) => !person.active)
+        .map((person) => ({
+          id: person.id,
+          name: person.name,
+          position: person.position,
+          isGm: person.isGm,
+          isSample: person.isSample,
+          active: false,
         }))
         .sort(compareTrainers),
     })),

@@ -9,6 +9,7 @@ import {
   developmentHours,
   mondayOf,
   parseWeekLabel,
+  preferredWeek,
   weekLabel,
   type DevelopmentStoreWeek,
 } from "./development-hours";
@@ -21,6 +22,7 @@ export {
   formatHourTotal,
   mondayOf,
   parseWeekLabel,
+  preferredWeek,
   weekLabel,
   type DevelopmentPerson,
   type DevelopmentStoreWeek,
@@ -31,6 +33,10 @@ export type SheetStore = { store: string; week: string; notes: string; people: S
 
 export function personKey(name: string): string {
   return name.trim().toLowerCase().replace(/[’‘]/g, "'").replace(/\s+/g, " ");
+}
+
+export function sortTaskLabels(labels: string[]): string[] {
+  return [...labels].sort((a, b) => a.localeCompare(b, "en", { sensitivity: "base" }));
 }
 
 function bundledSheet(): SheetStore[] {
@@ -183,7 +189,7 @@ export function parseDevelopmentCsv(csv: string, weekStart: string) {
   const storeCol = index(["restaurant", "store", "store number"]);
   const hoursCol = index(["training hours needed", "hours"]);
   const commentsCol = index(["comments", "work", "work/comments"]);
-  const trainingCol = index(["training needed"]);
+  const trainingCol = index(["development activity", "actividad de desarrollo", "training needed"]);
   if (nameCol < 0 || storeCol < 0) throw new Error("The header needs Employee and Restaurant columns.");
   return table.slice(1).flatMap((row) => {
     const name = (row[nameCol] ?? "").trim();
@@ -217,8 +223,25 @@ async function scopedStores(who: Access, requested?: string) {
 export async function getDevelopment(filters: { week?: string; store?: string; position?: string }) {
   const who = await access();
   if (!allows(who, "view_development")) redirect("/");
-  const weekStart = mondayOf(filters.week && /^\d{4}-\d{2}-\d{2}$/.test(filters.week) ? filters.week : todayIso());
   const choices = await scopedStores(who);
+  const current = mondayOf(todayIso());
+  const requested = filters.week && /^\d{4}-\d{2}-\d{2}$/.test(filters.week) ? mondayOf(filters.week) : "";
+  let weekStart = requested || current;
+  if (!requested) {
+    const worked = await prisma.developmentWeek.findMany({
+      where: {
+        storeId: { in: choices.map((store) => store.id) },
+        entries: {
+          some: {
+            OR: [{ hours: { not: "" } }, { trainingNeeded: { not: "" } }, { comments: { not: "" } }],
+          },
+        },
+      },
+      select: { weekStart: true },
+      distinct: ["weekStart"],
+    });
+    weekStart = preferredWeek(current, worked.map((week) => week.weekStart));
+  }
   const stores = await scopedStores(who, filters.store);
   const position = filters.position && filters.position !== "all" ? canonicalTrainerPosition(filters.position) : "";
   const staff = await prisma.staff.findMany({
@@ -264,7 +287,7 @@ export async function getDevelopment(filters: { week?: string; store?: string; p
     position,
     canEdit: allows(who, "edit_development"),
     canManageRoster: allows(who, "edit_development") && allows(who, "roster_import"),
-    tasks: (await prisma.developmentTask.findMany({ orderBy: { sortOrder: "asc" } })).map((task) => task.label),
+    tasks: sortTaskLabels((await prisma.developmentTask.findMany()).map((task) => task.label)),
     canChooseStores: choices.length > 1,
     stores: choices.map((store) => store.number),
     storeChoices: choices.map((store) => ({ id: store.id, number: store.number })),
@@ -366,12 +389,13 @@ export async function copyDevelopmentWeek(weekStart: string, storeNumbers: strin
 export async function listDevelopmentTasks() {
   const who = await access();
   if (who.role !== "admin") redirect("/");
-  return prisma.developmentTask.findMany({ orderBy: { sortOrder: "asc" } });
+  const tasks = await prisma.developmentTask.findMany();
+  return tasks.sort((a, b) => a.label.localeCompare(b.label, "en", { sensitivity: "base" }));
 }
 
 export async function addDevelopmentTask(label: string) {
   const who = await access();
-  if (who.role !== "admin") throw new Error("Only an admin can change training needed options.");
+  if (who.role !== "admin") throw new Error("Only an admin can change development activity options.");
   const name = label.trim();
   if (!name) throw new Error("Enter a name.");
   const last = await prisma.developmentTask.findFirst({ orderBy: { sortOrder: "desc" } });
@@ -380,7 +404,7 @@ export async function addDevelopmentTask(label: string) {
 
 export async function renameDevelopmentTask(id: string, label: string) {
   const who = await access();
-  if (who.role !== "admin") throw new Error("Only an admin can change training needed options.");
+  if (who.role !== "admin") throw new Error("Only an admin can change development activity options.");
   const name = label.trim();
   if (!name) throw new Error("Enter a name.");
   const current = await prisma.developmentTask.findUnique({ where: { id } });
@@ -392,13 +416,13 @@ export async function renameDevelopmentTask(id: string, label: string) {
 
 export async function removeDevelopmentTask(id: string) {
   const who = await access();
-  if (who.role !== "admin") throw new Error("Only an admin can change training needed options.");
+  if (who.role !== "admin") throw new Error("Only an admin can change development activity options.");
   await prisma.developmentTask.delete({ where: { id } });
 }
 
 export async function developmentCsv(filters: { week?: string; store?: string; position?: string }) {
   const data = await getDevelopment(filters);
-  const rows = [["Employee", "Restaurant", "Position", "Training Hours Needed", "Training Needed", "Comments"]];
+  const rows = [["Employee", "Restaurant", "Position", "Training Hours Needed", "Development Activity", "Comments"]];
   for (const store of data.sections) {
     for (const person of store.people) {
       if (!person.hours && !person.trainingNeeded && !person.comments) continue;
@@ -408,6 +432,37 @@ export async function developmentCsv(filters: { week?: string; store?: string; p
   }
   const span = data.store || "all-stores";
   return { filename: `development-${span}-${data.weekStart}.csv`, csv: toCsv(rows) };
+}
+
+export async function addDevelopmentWork(input: {
+  staffId: string;
+  weekStart: string;
+  hours: string;
+  trainingNeeded: string;
+  comments: string;
+}) {
+  const who = await access();
+  assertPermission(who, "edit_development");
+  const staff = await prisma.staff.findUnique({ where: { id: input.staffId } });
+  if (!staff || !staff.active || !seesStoreId(who, staff.storeId)) throw new Error("Choose a person on the roster.");
+  const converted = convertHours(input.hours);
+  if (input.hours.trim() && !converted.converted) throw new Error("Choose hours from the list.");
+  const tasks = new Set((await prisma.developmentTask.findMany()).map((task) => task.label));
+  const hours = converted.hours;
+  const trainingNeeded = tasks.has(input.trainingNeeded) ? input.trainingNeeded : "";
+  const comments = input.comments.trim().slice(0, 2000);
+  if (!hours && !trainingNeeded && !comments) throw new Error("Enter hours, a development activity, or a comment.");
+  const start = mondayOf(input.weekStart);
+  const week = await prisma.developmentWeek.upsert({
+    where: { storeId_weekStart: { storeId: staff.storeId, weekStart: start } },
+    create: { storeId: staff.storeId, weekStart: start },
+    update: {},
+  });
+  await prisma.developmentEntry.upsert({
+    where: { weekId_staffId: { weekId: week.id, staffId: staff.id } },
+    create: { weekId: week.id, staffId: staff.id, hours, trainingNeeded, comments },
+    update: { hours, trainingNeeded, comments },
+  });
 }
 
 async function requireRosterEditor() {

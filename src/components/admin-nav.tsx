@@ -11,7 +11,7 @@ export async function AdminNav({ current }: { current: string }) {
     allows(who, "roster_import") ? { href: "/admin/roster", label: "Trainer roster" } : null,
     allows(who, "modules") ? { href: "/admin/modules", label: "Modules" } : null,
     allows(who, "roster_import") ? { href: "/admin/import", label: "Bulk progress" } : null,
-    who.role === "admin" ? { href: "/admin/development", label: "Training needed" } : null,
+    who.role === "admin" ? { href: "/admin/development", label: "Development Activity" } : null,
   ].filter((link): link is { href: string; label: string } => Boolean(link));
 
   return (

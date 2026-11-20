@@ -6,7 +6,7 @@ import { one } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = { title: "Training needed" };
+export const metadata = { title: "Development Activity" };
 
 export default async function DevelopmentTasksPage({
   searchParams,
@@ -21,10 +21,10 @@ export default async function DevelopmentTasksPage({
       <AdminNav current="/admin/development" />
       <PageHeader
         kicker="Admin"
-        title="Training needed"
-        description="These choices appear in the Training Needed dropdown on the development week. Renaming updates weeks that already use that name. Removing takes it off the list and leaves the old text on past weeks."
+        title="Development Activity"
+        description="These choices appear in the Development Activity dropdown, in alphabetical order. En español: Actividad de desarrollo. A new or renamed option joins that order. Renaming updates weeks that already use that name. Removing takes it off the list and leaves the old text on past weeks."
       />
-      <Flash error={one(params.error)} notice={one(params.saved) ? "Training needed list saved." : ""} />
+      <Flash error={one(params.error)} notice={one(params.saved) ? "Development activity list saved." : ""} />
       <form action={addDevelopmentTaskAction} className="mb-4 flex flex-wrap items-end gap-3">
         <label className="text-sm font-semibold">
           New option

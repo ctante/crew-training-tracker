@@ -1,5 +1,10 @@
 import { addDays } from "./format";
 
+export const DEVELOPMENT_ACTIVITY = {
+  en: "Development Activity",
+  es: "Actividad de desarrollo",
+} as const;
+
 export type DevelopmentPerson = {
   id: string;
   name: string;
@@ -17,6 +22,14 @@ export type DevelopmentStoreWeek = {
   hoursTotal: number;
   people: DevelopmentPerson[];
 };
+
+export function preferredWeek(current: string, weeksWithWork: string[]): string {
+  const weeks = [...new Set(weeksWithWork.filter(Boolean))].sort();
+  if (weeks.includes(current)) return current;
+  const past = weeks.filter((week) => week <= current);
+  if (past.length) return past[past.length - 1];
+  return weeks[0] ?? current;
+}
 
 export function mondayOf(iso: string): string {
   const [year, month, day] = iso.split("-").map(Number);

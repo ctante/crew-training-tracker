@@ -3,6 +3,7 @@
 import { useState } from "react";
 import {
   addDevelopmentPersonAction,
+  addDevelopmentWorkAction,
   deactivateDevelopmentPersonAction,
   restoreDevelopmentPersonAction,
   saveDevelopmentAction,
@@ -10,7 +11,7 @@ import {
 } from "@/app/actions";
 import { fieldClass, ghostButton, primaryButton } from "@/components/ui";
 import { DEVELOPMENT_POSITIONS } from "@/lib/constants";
-import { HOUR_CHOICES, formatHourTotal, type DevelopmentStoreWeek } from "@/lib/development-hours";
+import { DEVELOPMENT_ACTIVITY, HOUR_CHOICES, developmentHours, formatHourTotal, type DevelopmentStoreWeek } from "@/lib/development-hours";
 
 type StoreChoice = { id: string; number: string };
 
@@ -23,6 +24,9 @@ export function DevelopmentBoard({
   store,
   position,
   storeChoices,
+  showEveryone,
+  everyoneHref,
+  workHref,
 }: {
   sections: DevelopmentStoreWeek[];
   canEdit: boolean;
@@ -32,73 +36,151 @@ export function DevelopmentBoard({
   store: string;
   position: string;
   storeChoices: StoreChoice[];
+  showEveryone: boolean;
+  everyoneHref: string;
+  workHref: string;
 }) {
   const [open, setOpen] = useState<Record<string, boolean>>(() => Object.fromEntries(sections.map((item) => [item.id, true])));
   const [editing, setEditing] = useState(false);
-  const [adding, setAdding] = useState(false);
+  const [addingPerson, setAddingPerson] = useState(false);
+  const [addingWork, setAddingWork] = useState(false);
+  const [showRemoved, setShowRemoved] = useState(false);
   const showAll = canEdit && editing;
   const managePeople = showAll && canManageRoster;
+  const rosterPeople = sections.flatMap((item) =>
+    item.people.filter((person) => person.active).map((person) => ({ ...person, storeNumber: item.number })),
+  );
 
   function hasWork(person: DevelopmentStoreWeek["people"][number]) {
     return Boolean(person.hours.trim() || person.trainingNeeded.trim() || person.comments.trim());
   }
 
+  function includePerson(person: DevelopmentStoreWeek["people"][number]) {
+    if (showAll || showEveryone) return person.active || showRemoved;
+    return hasWork(person);
+  }
+
   const visible = sections
-    .map((item) => ({
-      ...item,
-      people: showAll ? item.people : item.people.filter(hasWork),
-    }))
-    .filter((item) => showAll || item.people.length > 0 || item.notes.trim());
+    .map((item) => {
+      const people = item.people.filter(includePerson);
+      return {
+        ...item,
+        people,
+        hoursTotal: people.reduce((sum, person) => sum + developmentHours(person.hours), 0),
+      };
+    })
+    .filter((item) => showAll || showEveryone || item.people.length > 0 || item.notes.trim());
+  const anyPeople = visible.some((item) => item.people.length > 0);
 
   return (
     <div>
-      {canManageRoster ? (
-        <div className="mb-4 print:hidden">
-          {adding ? (
-            <form action={addDevelopmentPersonAction} className="rounded-3xl border border-line bg-card p-4">
-              <h2 className="font-display text-2xl">Add person</h2>
-              <input type="hidden" name="week" value={week} />
-              <input type="hidden" name="returnStore" value={store} />
-              <input type="hidden" name="returnPosition" value={position} />
-              <div className="mt-3 flex flex-wrap items-end gap-3">
-                <label className="text-sm font-semibold">
-                  Store
-                  <select className={`${fieldClass} mt-1`} name="storeId" defaultValue={storeChoices[0]?.id ?? ""} required>
-                    {storeChoices.map((choice) => (
-                      <option key={choice.id} value={choice.id}>
-                        {choice.number}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="text-sm font-semibold">
-                  Name
-                  <input className={`${fieldClass} mt-1`} name="name" required autoComplete="off" />
-                </label>
-                <label className="text-sm font-semibold">
-                  Position
-                  <select className={`${fieldClass} mt-1`} name="position" defaultValue="Crew Trainer" required>
-                    {DEVELOPMENT_POSITIONS.map((choice) => (
-                      <option key={choice.value} value={choice.value}>
-                        {choice.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <button className={primaryButton} type="submit">
-                  Save person
-                </button>
-                <button className={ghostButton} type="button" onClick={() => setAdding(false)}>
-                  Cancel
-                </button>
-              </div>
-            </form>
-          ) : (
-            <button className={ghostButton} type="button" onClick={() => setAdding(true)}>
-              Add person
+      <div className="mb-4 flex flex-wrap gap-2 print:hidden">
+        {canManageRoster ? (
+          <button className={primaryButton} type="button" onClick={() => { setAddingPerson((value) => !value); setAddingWork(false); }}>
+            + Add person
+          </button>
+        ) : null}
+        {canEdit ? (
+          <button className={ghostButton} type="button" onClick={() => { setAddingWork((value) => !value); setAddingPerson(false); }}>
+            Add work
+          </button>
+        ) : null}
+      </div>
+      {addingPerson && canManageRoster ? (
+        <form action={addDevelopmentPersonAction} className="mb-4 rounded-3xl border border-line bg-card p-4 print:hidden">
+          <h2 className="font-display text-2xl">Add person</h2>
+          <p className="mt-1 text-sm text-ink/70">Creates a roster employee and a qualified trainer. This does not assign hours.</p>
+          <input type="hidden" name="week" value={week} />
+          <input type="hidden" name="returnStore" value={store} />
+          <input type="hidden" name="returnPosition" value={position} />
+          <div className="mt-3 flex flex-wrap items-end gap-3">
+            <label className="text-sm font-semibold">
+              Store
+              <select className={`${fieldClass} mt-1`} name="storeId" defaultValue={storeChoices.find((choice) => choice.number === store)?.id ?? storeChoices[0]?.id ?? ""} required>
+                {storeChoices.map((choice) => (
+                  <option key={choice.id} value={choice.id}>
+                    {choice.number}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="text-sm font-semibold">
+              Name
+              <input className={`${fieldClass} mt-1`} name="name" required autoComplete="off" />
+            </label>
+            <label className="text-sm font-semibold">
+              Position
+              <select className={`${fieldClass} mt-1`} name="position" defaultValue="Crew Trainer" required>
+                {DEVELOPMENT_POSITIONS.map((choice) => (
+                  <option key={choice.value} value={choice.value}>
+                    {choice.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button className={primaryButton} type="submit">
+              Save person
             </button>
-          )}
-        </div>
+            <button className={ghostButton} type="button" onClick={() => setAddingPerson(false)}>
+              Cancel
+            </button>
+          </div>
+        </form>
+      ) : null}
+      {addingWork && canEdit ? (
+        <form action={addDevelopmentWorkAction} className="mb-4 rounded-3xl border border-line bg-card p-4 print:hidden">
+          <h2 className="font-display text-2xl">Add work</h2>
+          <p className="mt-1 text-sm text-ink/70">Records hours, a development activity, or a comment for someone already on the roster.</p>
+          <input type="hidden" name="week" value={week} />
+          <input type="hidden" name="returnStore" value={store} />
+          <input type="hidden" name="returnPosition" value={position} />
+          <div className="mt-3 flex flex-wrap items-end gap-3">
+            <label className="text-sm font-semibold">
+              Person
+              <select className={`${fieldClass} mt-1`} name="staffId" required defaultValue={rosterPeople[0]?.id ?? ""}>
+                {rosterPeople.length === 0 ? <option value="">No one on the roster</option> : null}
+                {rosterPeople.map((person) => (
+                  <option key={person.id} value={person.id}>
+                    {person.storeNumber} · {person.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="text-sm font-semibold">
+              Hours
+              <select className={`${fieldClass} mt-1 w-28`} name="hours" defaultValue="">
+                <option value=""> </option>
+                {HOUR_CHOICES.map((choice) => (
+                  <option key={choice} value={choice}>
+                    {choice}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="text-sm font-semibold">
+              {DEVELOPMENT_ACTIVITY.en}
+              <span className="mt-0.5 block text-xs font-normal text-ink/50">{DEVELOPMENT_ACTIVITY.es}</span>
+              <select className={`${fieldClass} mt-1`} name="trainingNeeded" defaultValue="">
+                <option value=""> </option>
+                {tasks.map((task) => (
+                  <option key={task} value={task}>
+                    {task}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="min-w-48 text-sm font-semibold">
+              Comments
+              <input className={`${fieldClass} mt-1`} name="comments" />
+            </label>
+            <button className={primaryButton} type="submit">
+              Save work
+            </button>
+            <button className={ghostButton} type="button" onClick={() => setAddingWork(false)}>
+              Cancel
+            </button>
+          </div>
+        </form>
       ) : null}
       <form action={saveDevelopmentAction}>
         <input type="hidden" name="week" value={week} />
@@ -116,8 +198,33 @@ export function DevelopmentBoard({
               {editing ? "Done editing" : "Edit"}
             </button>
           ) : null}
+          {managePeople ? (
+            <button className={showRemoved ? primaryButton : ghostButton} type="button" onClick={() => setShowRemoved((value) => !value)}>
+              {showRemoved ? "Hide removed" : "Show removed"}
+            </button>
+          ) : null}
+          {!showAll && !showEveryone ? (
+            <a className={ghostButton} href={everyoneHref}>
+              Show everyone
+            </a>
+          ) : null}
+          {!showAll && showEveryone ? (
+            <a className={ghostButton} href={workHref}>
+              Show only people with work
+            </a>
+          ) : null}
         </div>
-        {visible.length === 0 ? <p className="text-sm text-ink/70">No work is assigned this week.</p> : null}
+        {!anyPeople && !showAll && !showEveryone ? (
+          <div className="mb-4 rounded-3xl border border-line bg-card p-4">
+            <p className="text-sm text-ink/80">No work is assigned this week. The roster is still here.</p>
+            <a className={`${primaryButton} mt-3`} href={everyoneHref}>
+              Show everyone
+            </a>
+          </div>
+        ) : null}
+        {!anyPeople && (showAll || showEveryone) ? (
+          <p className="mb-4 text-sm text-ink/70">No active people are on the roster for these restaurants.</p>
+        ) : null}
         <div className="space-y-4">
           {visible.map((item) => {
             const expanded = open[item.id] !== false;
@@ -150,8 +257,12 @@ export function DevelopmentBoard({
                           <th className="py-2 pr-3 font-semibold">Employee</th>
                           <th className="py-2 pr-3 font-semibold">Position</th>
                           <th className="py-2 pr-3 font-semibold">Training Hours Needed</th>
-                          <th className="py-2 pr-3 font-semibold">Training Needed</th>
-                          <th className="py-2 font-semibold">Comments</th>
+                          <th className="py-2 pr-3 font-semibold">
+                            {DEVELOPMENT_ACTIVITY.en}
+                            <span className="mt-0.5 block text-xs font-normal text-ink/50">{DEVELOPMENT_ACTIVITY.es}</span>
+                          </th>
+                          <th className="py-2 pr-3 font-semibold">Comments</th>
+                          {managePeople ? <th className="py-2 font-semibold print:hidden">Roster</th> : null}
                         </tr>
                       </thead>
                       <tbody>
@@ -165,7 +276,7 @@ export function DevelopmentBoard({
                               <td className="py-2 pr-3 align-top font-semibold">
                                 <span className={managePeople ? "hidden print:inline" : undefined}>
                                   {person.name}
-                                  {person.active ? "" : " · Inactive"}
+                                  {person.active ? "" : " · Removed"}
                                 </span>
                                 {managePeople ? (
                                   <div className="print:hidden">
@@ -197,19 +308,10 @@ export function DevelopmentBoard({
                                         ))}
                                       </select>
                                     </label>
-                                    <div className="mt-2 flex flex-wrap gap-2">
+                                    <div className="mt-2">
                                       <button className={ghostButton} type="submit" form={editForm}>
                                         Save person
                                       </button>
-                                      {person.active ? (
-                                        <button className={ghostButton} type="submit" form={removeForm}>
-                                          Remove
-                                        </button>
-                                      ) : (
-                                        <button className={ghostButton} type="submit" form={restoreForm}>
-                                          Restore
-                                        </button>
-                                      )}
                                     </div>
                                   </div>
                                 ) : null}
@@ -261,7 +363,7 @@ export function DevelopmentBoard({
                                     className={fieldClass}
                                     name={`training:${person.id}`}
                                     defaultValue={tasks.includes(person.trainingNeeded) ? person.trainingNeeded : ""}
-                                    aria-label={`Training needed for ${person.name}`}
+                                    aria-label={`${DEVELOPMENT_ACTIVITY.en} for ${person.name}`}
                                   >
                                     <option value=""> </option>
                                     {tasks.map((task) => (
@@ -289,6 +391,19 @@ export function DevelopmentBoard({
                                   <span className="whitespace-pre-wrap">{person.comments}</span>
                                 )}
                               </td>
+                              {managePeople ? (
+                                <td className="py-2 align-top print:hidden">
+                                  {person.active ? (
+                                    <button className={ghostButton} type="submit" form={removeForm}>
+                                      Remove
+                                    </button>
+                                  ) : (
+                                    <button className={ghostButton} type="submit" form={restoreForm}>
+                                      Restore
+                                    </button>
+                                  )}
+                                </td>
+                              ) : null}
                             </tr>
                           );
                         })}
