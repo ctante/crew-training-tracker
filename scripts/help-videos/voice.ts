@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { access, mkdir, readFile, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 const ROOT = path.resolve(import.meta.dirname, "../..");
@@ -152,6 +152,7 @@ export async function publishNarration(options: {
   out: string;
   posterPath?: string;
   vttPath?: string;
+  embedSubtitles?: boolean;
   workDir: string;
 }) {
   const duration = await probe(options.rawPath);
@@ -172,7 +173,91 @@ export async function publishNarration(options: {
   );
   await muxNarration(options.rawPath, voiceWav, options.out);
   if (options.vttPath) await writeFile(options.vttPath, vtt(timed));
+  if (options.vttPath && options.embedSubtitles) await embedSoftSubtitles(options.out, options.vttPath);
   if (options.posterPath) await poster(options.out, timed[1]?.start ?? timed[0]?.start ?? 1, options.posterPath);
+}
+
+export async function embedSoftSubtitles(video: string, captions: string) {
+  const plain = `${video}.nosub.mp4`;
+  await rename(video, plain);
+  await run("ffmpeg", [
+    "-y",
+    "-i",
+    plain,
+    "-i",
+    captions,
+    "-map",
+    "0:v:0",
+    "-map",
+    "0:a:0",
+    "-map",
+    "1:0",
+    "-c:v",
+    "copy",
+    "-c:a",
+    "copy",
+    "-c:s",
+    "mov_text",
+    "-metadata:s:s:0",
+    "language=eng",
+    "-metadata:s:s:0",
+    "handler_name=English",
+    "-metadata:s:s:0",
+    "title=English",
+    "-disposition:s:0",
+    "0",
+    "-movflags",
+    "+faststart",
+    video,
+  ]);
+  await run("rm", ["-f", plain]);
+  await clearSubtitleDefault(video);
+}
+
+function clearSubtitleDefault(file: string) {
+  return import("node:fs/promises").then(async ({ readFile, writeFile }) => {
+    const data = new Uint8Array(await readFile(file));
+    const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+    const atoms = (start: number, end: number) => {
+      const found: { offset: number; size: number; type: string; header: number }[] = [];
+      let cursor = start;
+      while (cursor + 8 <= end) {
+        let size = view.getUint32(cursor);
+        const type = new TextDecoder().decode(data.subarray(cursor + 4, cursor + 8));
+        let header = 8;
+        if (size === 1) {
+          size = Number(view.getBigUint64(cursor + 8));
+          header = 16;
+        }
+        if (size < header || cursor + size > end) break;
+        found.push({ offset: cursor, size, type, header });
+        cursor += size;
+      }
+      return found;
+    };
+    for (const moov of atoms(0, data.length)) {
+      if (moov.type !== "moov") continue;
+      for (const trak of atoms(moov.offset + moov.header, moov.offset + moov.size)) {
+        if (trak.type !== "trak") continue;
+        let handler = "";
+        let flagAt = -1;
+        for (const child of atoms(trak.offset + trak.header, trak.offset + trak.size)) {
+          if (child.type === "tkhd") flagAt = child.offset + child.header + 1;
+          if (child.type === "mdia") {
+            for (const media of atoms(child.offset + child.header, child.offset + child.size)) {
+              if (media.type === "hdlr" && media.size > 24) {
+                handler = new TextDecoder().decode(data.subarray(media.offset + media.header + 8, media.offset + media.header + 12));
+              }
+            }
+          }
+        }
+        if ((handler === "sbtl" || handler === "text" || handler === "subt") && flagAt >= 0) {
+          data[flagAt + 2] &= ~0x01;
+        }
+      }
+    }
+    await writeFile(file, data);
+  });
 }
 
 export function holdSeconds(speech: number) {
