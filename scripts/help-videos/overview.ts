@@ -92,28 +92,17 @@ const SCENES: { title: string; line: string; run?: (page: Page) => Promise<void>
   },
 ];
 
-async function card(page: Page, title: string, line: string) {
+async function card(page: Page, title: string) {
   await page.setContent(`<!doctype html><html><body style="margin:0;height:100vh;display:flex;flex-direction:column;justify-content:center;align-items:center;background:#2a2118;color:#fff7e8;font-family:Georgia,serif;text-align:center;padding:48px">
-    <p style="letter-spacing:.18em;text-transform:uppercase;font:600 14px ui-sans-serif,sans-serif;color:#e7b008">${title}</p>
-    <h1 style="font-size:42px;line-height:1.2;max-width:980px;margin:16px 0 0">${line}</h1>
+    <h1 style="font-size:64px;line-height:1.15;max-width:900px;margin:0">${title}</h1>
   </body></html>`);
 }
 
-async function caption(page: Page, text: string) {
-  await page.evaluate((line) => {
+async function settle(page: Page) {
+  await page.evaluate(() => {
     document.querySelectorAll("nextjs-portal").forEach((node) => node.remove());
-    let bar = document.getElementById("help-caption");
-    if (!bar) {
-      bar = document.createElement("div");
-      bar.id = "help-caption";
-      bar.setAttribute(
-        "style",
-        "position:fixed;left:0;right:0;bottom:0;z-index:99999;background:rgba(20,16,12,.92);color:#fff;font:600 26px/1.35 ui-sans-serif,sans-serif;padding:18px 32px;text-align:center",
-      );
-      document.body.appendChild(bar);
-    }
-    bar.textContent = line;
-  }, text);
+    document.getElementById("help-caption")?.remove();
+  });
 }
 
 async function main() {
@@ -143,9 +132,9 @@ async function main() {
     const scene = SCENES[index];
     if (scene.run) {
       await scene.run(page);
-      await caption(page, scene.line);
+      await settle(page);
     } else {
-      await card(page, scene.title, scene.line);
+      await card(page, scene.title);
     }
     cues.push({
       line: scene.line,
@@ -167,6 +156,7 @@ async function main() {
     cues,
     out: ARTIFACT,
     vttPath: "/opt/cursor/artifacts/ITS_Overview.vtt",
+    embedSubtitles: true,
     workDir: RAW,
   });
   console.log("Wrote", ARTIFACT);
