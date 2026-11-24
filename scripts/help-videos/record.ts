@@ -135,21 +135,11 @@ async function signIn(page: Page, login: string, password: string) {
   await page.waitForURL((url) => !url.pathname.startsWith("/login"));
 }
 
-async function caption(page: Page, text: string) {
-  await page.evaluate((line) => {
+async function settle(page: Page) {
+  await page.evaluate(() => {
     document.querySelectorAll("nextjs-portal").forEach((node) => node.remove());
-    let bar = document.getElementById("help-caption");
-    if (!bar) {
-      bar = document.createElement("div");
-      bar.id = "help-caption";
-      bar.setAttribute(
-        "style",
-        "position:fixed;left:0;right:0;bottom:0;z-index:99999;background:rgba(20,16,12,.92);color:#fff;font:600 24px/1.35 ui-sans-serif,sans-serif;padding:16px 28px;text-align:center",
-      );
-      document.body.appendChild(bar);
-    }
-    bar.textContent = line;
-  }, text);
+    document.getElementById("help-caption")?.remove();
+  });
 }
 
 async function main() {
@@ -188,7 +178,7 @@ async function main() {
     const cues: { line: string; at: number; file: string }[] = [];
     for (let index = 0; index < steps.length; index += 1) {
       await ACTIONS[guide.id][index](page);
-      await caption(page, steps[index]);
+      await settle(page);
       cues.push({
         line: steps[index],
         at: (Date.now() - wallStart) / 1000,
