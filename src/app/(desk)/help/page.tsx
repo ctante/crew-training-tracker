@@ -1,4 +1,5 @@
 import { CollapsibleSections } from "@/components/collapsible-sections";
+import { HelpVideo } from "@/components/help-video";
 import { PageHeader } from "@/components/ui";
 import { access } from "@/lib/access";
 import { HELP_GUIDES, helpRoleId } from "@/lib/help";
@@ -36,10 +37,7 @@ export default async function HelpPage() {
           body: (
             <div className="grid gap-4">
               <p className="text-sm text-ink/75">{guide.summary}</p>
-              <video className="w-full rounded-2xl bg-bark" controls preload="metadata" poster={guide.poster}>
-                <source src={guide.video} type="video/mp4" />
-                <track kind="captions" src={guide.captions} srcLang="en" label="English" default />
-              </video>
+              <HelpVideo src={guide.video} poster={guide.poster} captions={guide.captions} />
               <div>
                 <h3 className="font-display text-2xl">Walkthrough</h3>
                 <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm">

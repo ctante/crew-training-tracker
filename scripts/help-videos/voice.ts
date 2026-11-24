@@ -9,6 +9,7 @@ const LOCAL_PYTHON = "/tmp/kokoro-venv/bin/python";
 
 export const VOICE = "af_heart";
 export const VOICE_ENGINE = "Kokoro (kokoro-onnx)";
+export const SPEECH_SPEED = 0.85;
 
 export function run(command: string, args: string[]) {
   return new Promise<void>((resolve, reject) => {
@@ -49,7 +50,7 @@ export async function synthesize(dir: string, groups: { id: string; lines: strin
   await mkdir(dir, { recursive: true });
   const python = await voicePython();
   const job = path.join(dir, "render.json");
-  await writeFile(job, JSON.stringify({ dir, groups, voice: VOICE, speed: 1 }));
+  await writeFile(job, JSON.stringify({ dir, groups, voice: VOICE, speed: SPEECH_SPEED }));
   await run(python, [SPEAK, "render", job]);
   const durations = JSON.parse(await readFile(path.join(dir, "durations.json"), "utf8")) as Record<string, number[]>;
   return durations;
@@ -175,5 +176,6 @@ export async function publishNarration(options: {
 }
 
 export function holdSeconds(speech: number) {
-  return Math.max(speech + 0.9, 4.8);
+  const scale = 1 / SPEECH_SPEED;
+  return Math.max(speech + 0.9 * scale, 4.8 * scale);
 }

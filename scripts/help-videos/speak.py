@@ -18,7 +18,7 @@ CACHE = ROOT / ".cache"
 MODEL_URL = "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/kokoro-v1.0.onnx"
 VOICES_URL = "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/voices-v1.0.bin"
 VOICE = "af_heart"
-SPEED = 1.0
+SPEED = 0.85
 SAMPLE_RATE = 24000
 
 
