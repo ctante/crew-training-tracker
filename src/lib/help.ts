@@ -81,3 +81,16 @@ export function helpRoleId(role: string): HelpRoleId {
   if (role === "manager") return "MANAGER";
   return "USER";
 }
+
+const HELP_MEDIA = /^(user|manager|supervisor|admin)\.(mp4|vtt|jpg)$/;
+
+export function helpMediaRole(file: string): HelpRoleId | null {
+  const match = HELP_MEDIA.exec(file);
+  if (!match) return null;
+  return match[1].toUpperCase() as HelpRoleId;
+}
+
+export function canWatchHelp(viewerRole: string, fileRole: HelpRoleId) {
+  if (viewerRole === "admin") return true;
+  return helpRoleId(viewerRole) === fileRole;
+}
