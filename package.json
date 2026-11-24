@@ -11,6 +11,7 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:reset": "SEED_SAMPLE_DATA=true prisma migrate reset --force",
     "check": "tsx scripts/self-check.ts",
+    "help:videos": "tsx scripts/help-videos/record.ts",
     "postinstall": "prisma generate"
   },
   "prisma": {
@@ -34,6 +35,7 @@
     "@types/ws": "^8.18.2",
     "eslint": "^9",
     "eslint-config-next": "16.4.6",
+    "playwright": "^1.65.1",
     "prisma": "6.19.2",
     "tailwindcss": "4.3.3",
     "tsx": "^4.20.6",

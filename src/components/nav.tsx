@@ -26,6 +26,7 @@ const links = [
     match: (path: string) => path.startsWith("/development"),
   },
   { href: "/reports", label: "Reports", icon: ReportIcon, match: (path: string) => path.startsWith("/reports") },
+  { href: "/help", label: "Help", icon: HelpIcon, match: (path: string) => path.startsWith("/help") },
   {
     href: "/admin",
     label: "Admin",
@@ -64,7 +65,15 @@ export function TabNav({
 }) {
   const items = links.filter((link) => visible(link.href, showAdmin, showReports, showDevelopment));
   const columns =
-    items.length >= 7 ? "grid-cols-7" : items.length === 6 ? "grid-cols-6" : items.length === 5 ? "grid-cols-5" : "grid-cols-4";
+    items.length >= 8
+      ? "grid-cols-8"
+      : items.length >= 7
+        ? "grid-cols-7"
+        : items.length === 6
+          ? "grid-cols-6"
+          : items.length === 5
+            ? "grid-cols-5"
+            : "grid-cols-4";
   return (
     <nav
       className={`fixed inset-x-0 bottom-0 z-20 grid border-t border-white/10 bg-bark px-1 pb-[max(0.4rem,env(safe-area-inset-bottom))] pt-1 print:hidden lg:hidden ${columns}`}
@@ -167,6 +176,16 @@ function ReportIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
       <path d="M5 19V10M10 19V5M15 19v-6M20 19V8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function HelpIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <circle cx="12" cy="12" r="8" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M9.5 9.5a2.5 2.5 0 1 1 3.2 2.4c-.7.3-1.2.8-1.2 1.6V14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <circle cx="12" cy="17" r="0.8" fill="currentColor" />
     </svg>
   );
 }
