@@ -1,19 +1,19 @@
 WEBVTT
 
-00:00:00.000 --> 00:00:11.000
+00:00:00.063 --> 00:00:05.077
 Sign in with the admin password. Leave the username blank.
 
-00:00:11.000 --> 00:00:22.000
+00:00:05.077 --> 00:00:10.820
 Open Admin, then Employee Roster. Positions come from the roster import.
 
-00:00:22.000 --> 00:00:33.000
+00:00:10.820 --> 00:00:18.364
 Use Import CSV when a new MyQSRSoft file arrives. The file needs a position column.
 
-00:00:33.000 --> 00:00:44.000
+00:00:18.364 --> 00:00:24.574
 Open Users to add an account and choose User, Manager, Supervisor, or Admin.
 
-00:00:44.000 --> 00:00:55.000
+00:00:24.574 --> 00:00:29.524
 Open Store Passwords to set the shared login for a restaurant.
 
-00:00:55.000 --> 00:01:06.000
+00:00:29.524 --> 00:00:35.080
 Open Modules to review the Crew Training Path materials.

@@ -1,12 +1,11 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir } from "node:fs/promises";
 import path from "node:path";
-import { spawn } from "node:child_process";
 import { chromium, type Page } from "playwright";
+import { holdSeconds, publishNarration, synthesize } from "./voice";
 
 const ROOT = path.resolve(import.meta.dirname, "../..");
 const RAW = path.join(ROOT, "tmp/help-raw");
 const BASE = process.env.HELP_BASE_URL ?? "http://127.0.0.1:3010";
-const STEP_MS = 12000;
 const ARTIFACT = "/opt/cursor/artifacts/ITS_Overview.mp4";
 
 const SCENES: { title: string; line: string; run?: (page: Page) => Promise<void> }[] = [
@@ -96,126 +95,80 @@ const SCENES: { title: string; line: string; run?: (page: Page) => Promise<void>
 async function card(page: Page, title: string, line: string) {
   await page.setContent(`<!doctype html><html><body style="margin:0;height:100vh;display:flex;flex-direction:column;justify-content:center;align-items:center;background:#2a2118;color:#fff7e8;font-family:Georgia,serif;text-align:center;padding:48px">
     <p style="letter-spacing:.18em;text-transform:uppercase;font:600 14px ui-sans-serif,sans-serif;color:#e7b008">${title}</p>
-    <h1 style="font-size:54px;line-height:1.15;max-width:900px;margin:16px 0 0">${line}</h1>
+    <h1 style="font-size:42px;line-height:1.2;max-width:980px;margin:16px 0 0">${line}</h1>
   </body></html>`);
-  await page.waitForTimeout(STEP_MS);
 }
 
 async function caption(page: Page, text: string) {
   await page.evaluate((line) => {
+    document.querySelectorAll("nextjs-portal").forEach((node) => node.remove());
     let bar = document.getElementById("help-caption");
     if (!bar) {
       bar = document.createElement("div");
       bar.id = "help-caption";
       bar.setAttribute(
         "style",
-        "position:fixed;left:0;right:0;bottom:0;z-index:99999;background:rgba(20,16,12,.9);color:#fff;font:600 26px/1.35 ui-sans-serif,sans-serif;padding:18px 32px;text-align:center",
+        "position:fixed;left:0;right:0;bottom:0;z-index:99999;background:rgba(20,16,12,.92);color:#fff;font:600 26px/1.35 ui-sans-serif,sans-serif;padding:18px 32px;text-align:center",
       );
       document.body.appendChild(bar);
     }
     bar.textContent = line;
   }, text);
-  await page.waitForTimeout(STEP_MS);
-}
-
-function stamp(ms: number) {
-  const total = Math.floor(ms / 1000);
-  const h = String(Math.floor(total / 3600)).padStart(2, "0");
-  const m = String(Math.floor((total % 3600) / 60)).padStart(2, "0");
-  const s = String(total % 60).padStart(2, "0");
-  return `${h}:${m}:${s}.${String(ms % 1000).padStart(3, "0")}`;
-}
-
-function run(command: string, args: string[]) {
-  return new Promise<void>((resolve, reject) => {
-    const child = spawn(command, args, { stdio: "inherit" });
-    child.on("exit", (code) => (code === 0 ? resolve() : reject(new Error(`${command} exited ${code}`))));
-  });
-}
-
-async function narrate(dir: string) {
-  const parts: string[] = [];
-  for (let index = 0; index < SCENES.length; index += 1) {
-    const wav = path.join(dir, `line-${index}.wav`);
-    const padded = path.join(dir, `pad-${index}.wav`);
-    await run("espeak-ng", ["-s", "145", "-v", "en-us", "-w", wav, SCENES[index].line]);
-    await run("ffmpeg", ["-y", "-i", wav, "-af", `apad=pad_dur=${STEP_MS / 1000}`, "-t", String(STEP_MS / 1000), padded]);
-    parts.push(`file '${padded}'`);
-  }
-  const list = path.join(dir, "list.txt");
-  await writeFile(list, parts.join("\n"));
-  const voice = path.join(dir, "voice.wav");
-  await run("ffmpeg", ["-y", "-f", "concat", "-safe", "0", "-i", list, "-c", "copy", voice]);
-  return voice;
 }
 
 async function main() {
   await mkdir(RAW, { recursive: true });
   await mkdir(path.dirname(ARTIFACT), { recursive: true });
+  const speechDir = path.join(RAW, "overview-speech");
+  const durations = await synthesize(speechDir, [{ id: "overview", lines: SCENES.map((scene) => scene.line) }]);
+  const lengths = durations.overview;
   const browser = await chromium.launch({
     executablePath: process.env.CHROME_PATH || "/usr/local/bin/google-chrome",
     headless: true,
     args: ["--no-sandbox", "--disable-dev-shm-usage"],
   });
+  const wallStart = Date.now();
   const context = await browser.newContext({
     viewport: { width: 1280, height: 720 },
     recordVideo: { dir: RAW, size: { width: 1280, height: 720 } },
   });
+  await context.addInitScript(() => {
+    const hide = () => document.querySelectorAll("nextjs-portal").forEach((node) => node.remove());
+    new MutationObserver(hide).observe(document.documentElement, { childList: true, subtree: true });
+    hide();
+  });
   const page = await context.newPage();
-  for (const scene of SCENES) {
+  const cues: { line: string; at: number; file: string }[] = [];
+  for (let index = 0; index < SCENES.length; index += 1) {
+    const scene = SCENES[index];
     if (scene.run) {
       await scene.run(page);
       await caption(page, scene.line);
     } else {
       await card(page, scene.title, scene.line);
     }
+    cues.push({
+      line: scene.line,
+      at: (Date.now() - wallStart) / 1000,
+      file: path.join(speechDir, `overview-${index}.wav`),
+    });
+    await page.waitForTimeout(holdSeconds(lengths[index] ?? 5) * 1000);
   }
+  await page.waitForTimeout(500);
   const video = page.video();
   await context.close();
+  const wallEnd = Date.now();
   await browser.close();
   const rawPath = video ? await video.path() : "";
-  const voice = await narrate(RAW);
-  const seconds = (SCENES.length * STEP_MS) / 1000;
-  await run("ffmpeg", [
-    "-y",
-    "-i",
+  await publishNarration({
     rawPath,
-    "-i",
-    voice,
-    "-f",
-    "lavfi",
-    "-i",
-    `sine=frequency=196:duration=${seconds}`,
-    "-filter_complex",
-    "[2:a]volume=0.03[bed];[1:a][bed]amix=inputs=2:duration=first:dropout_transition=0[a]",
-    "-map",
-    "0:v:0",
-    "-map",
-    "[a]",
-    "-r",
-    "12",
-    "-c:v",
-    "libx264",
-    "-pix_fmt",
-    "yuv420p",
-    "-preset",
-    "veryfast",
-    "-crf",
-    "30",
-    "-c:a",
-    "aac",
-    "-b:a",
-    "96k",
-    "-shortest",
-    "-movflags",
-    "+faststart",
-    ARTIFACT,
-  ]);
-  const vtt = ["WEBVTT", ""];
-  SCENES.forEach((scene, index) => {
-    vtt.push(`${stamp(index * STEP_MS)} --> ${stamp((index + 1) * STEP_MS)}`, scene.line, "");
+    wallStart,
+    wallEnd,
+    cues,
+    out: ARTIFACT,
+    vttPath: "/opt/cursor/artifacts/ITS_Overview.vtt",
+    workDir: RAW,
   });
-  await writeFile("/opt/cursor/artifacts/ITS_Overview.vtt", vtt.join("\n"));
   console.log("Wrote", ARTIFACT);
 }
 

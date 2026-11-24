@@ -5,6 +5,9 @@ const nextConfig: NextConfig = {
   // per request instead of a cached shell.
   cacheComponents: false,
   serverExternalPackages: ["@prisma/client", "prisma"],
+  outputFileTracingIncludes: {
+    "/help/[file]": ["./content/help/**/*"],
+  },
   turbopack: {
     rules: {
       "*.css": {
